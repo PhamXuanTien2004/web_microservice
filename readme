@@ -1,0 +1,3 @@
+flask db init      # chạy 1 lần
+flask db migrate -m "init tables"
+flask db upgrade
