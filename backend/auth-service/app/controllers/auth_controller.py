@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from app.schemas.register_schema import RegisterSchema
 from app.services.auth_service import AuthService
 from marshmallow import ValidationError
-from app.middleware.auth_middleware import jwt_required 
+from app.middleware.jwt_middleware import jwt_required 
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
