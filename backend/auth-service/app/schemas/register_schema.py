@@ -24,8 +24,8 @@ class RegisterSchema(Schema):
     )
     telphone = fields.Str(
         required=False, 
-        validate=validate.Length(11),
-        error_messages={"length": "Telphone phải có đúng 11 ký tự"}
+        validate=validate.Length(10),
+        error_messages={"length": "Telphone phải có đúng 10 ký tự"}
     )
     sensors = fields.Int(
         required=False,
@@ -52,21 +52,11 @@ class RegisterSchema(Schema):
         telphone = data.get("telphone")
         if telphone:
             tel_errors = []
-            if not re.fullmatch(r"0\d{10}", telphone):
-                tel_errors.append("Telphone phải bắt đầu bằng số 0 và gồm 11 chữ số")
+            if not re.fullmatch(r"0\d{9}", telphone):
+                tel_errors.append("Telphone phải bắt đầu bằng số 0 và gồm 10 chữ số")
 
             if tel_errors:
                 errors["telphone"] = tel_errors
-        
-        #Validate email
-        email = data.get("email")
-        if email:
-            email_errors = []
-            if not re.search(r"^[\w\.-]+@[\w\.-]+\.\w+$", email):
-                email_errors.append("Email phải có @ và tên miền hợp lệ")
-
-            if email_errors:
-                errors["email"] = email_errors
 
         # Validate role
         role = data.get("role", "user")
