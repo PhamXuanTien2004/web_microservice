@@ -12,7 +12,7 @@ def jwt_required(f):
         if 'access_token_cookie' in request.cookies:
             token = request.cookies.get('access_token_cookie')
         
-        # 2. Fallback: Nếu không có cookie, thử kiểm tra Header (để hỗ trợ testing bằng Postman hoặc Mobile App nếu cần)
+        # 2. Fallback: Nếu không có cookie, thử kiểm tra Header 
         elif 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
             if auth_header.startswith("Bearer "):

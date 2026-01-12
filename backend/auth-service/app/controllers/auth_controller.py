@@ -1,7 +1,7 @@
 # app/controllers/auth_controller.py
 from flask import Blueprint, request, jsonify, make_response
 from config import Config
-from app.models.user_model import Users
+from app.models.auth_model import Auths
 from app.models.token_blacklist import TokenBlacklist
 from app.services.token_service import (
     generate_access_token,
@@ -29,13 +29,7 @@ def register():
         user = AuthService.register_user(validated_data)
         return jsonify({
             "message": "Register successful",
-            "user_id": user.id,
-            "name": user.name,
             "username": user.username,
-            "email": user.email,
-            "telphone": user.telphone,
-            "role": user.role.value,
-            "sensors": user.sensors,
             "created_at": user.created_at.isoformat() if user.created_at else None
         }), 201
 
@@ -64,7 +58,6 @@ def login():
         "user": {
             "id": user.id,
             "username": user.username,
-            "role": user.role.value,
             "access": access_token,
             "refresh": refresh_token
         }
@@ -92,30 +85,57 @@ def login():
     return response, 200
 
 @auth_bp.route("/logout", methods=["POST"])
+@jwt_required
 def logout():
-    # 1. Lấy token từ Cookie để đưa vào blacklist (nếu cần)
-    # Lưu ý: Với cookie, client chỉ cần xóa cookie là logout, 
-    # nhưng để an toàn phía server, ta vẫn nên blacklist token cũ.
-    token = request.cookies.get("access_token_cookie")
+
+    # 1. Debug xem cookie có tồn tại không
+    access_token = request.cookies.get("access_token_cookie")
+    refresh_token = request.cookies.get("refresh_token_cookie")
+    
+    print(f"DEBUG: Access Token found: {access_token is not None}")
+    print(f"DEBUG: Refresh Token found: {refresh_token is not None}")
 
     response = make_response(jsonify({"message": "Logout thành công"}))
-
-    # 2. Xóa Cookies (Set value rỗng và hết hạn ngay lập tức)
+    
+    # Xóa cookie
     response.set_cookie('access_token_cookie', '', expires=0, httponly=True)
     response.set_cookie('refresh_token_cookie', '', expires=0, httponly=True, path='/auth/refresh')
 
-    # 3. Blacklist logic (Optional nhưng khuyên dùng)
-    if token:
-        try:
-            payload = decode_token(token, token_type="access")
-            blacklist = TokenBlacklist(
-                token=token,
-                expired_at=datetime.fromtimestamp(payload["exp"])
+    try:
+        # Xử lý Blacklist Access Token
+        if access_token:
+            decoded_acc = decode_token(access_token)
+            # Dùng .get() để tránh lỗi nếu không có jti
+            jti_acc = decoded_acc.get("jti") or access_token[-10:] 
+            exp_acc = datetime.fromtimestamp(decoded_acc["exp"])
+            
+            acc_blacklist = TokenBlacklist(
+                token=access_token, # Lưu ý độ dài
+                expired_at=exp_acc
             )
-            db.session.add(blacklist)
-            db.session.commit()
-        except Exception:
-            pass # Token lỗi hoặc hết hạn thì bỏ qua
+            db.session.add(acc_blacklist)
+            print("DEBUG: Added Access Token to Session")
+
+        # Xử lý Blacklist Refresh Token
+        if refresh_token:
+            decoded_ref = decode_token(refresh_token)
+            exp_ref = datetime.fromtimestamp(decoded_ref["exp"])
+            
+            ref_blacklist = TokenBlacklist(
+                token=refresh_token,
+                expired_at=exp_ref
+            )
+            db.session.add(ref_blacklist)
+            print("DEBUG: Added Refresh Token to Session")
+
+        # Commit DB
+        db.session.commit()
+        print("DEBUG: Commit to DB Successful!")
+
+    except Exception as e:
+        db.session.rollback() # Rollback nếu lỗi
+        print(f"🔴 LỖI CRITICAL KHI BLACKLIST: {str(e)}")
+        # Không return lỗi cho user, nhưng phải in ra console để dev biết
 
     return response, 200
 

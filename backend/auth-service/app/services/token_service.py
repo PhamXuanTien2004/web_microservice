@@ -7,9 +7,7 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 def generate_access_token(user):
     payload = {
         "sub": str(user.id),
-        "name": user.name,
         "username": user.username,
-        "role": user.role.value,
         "type": "access",
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(
