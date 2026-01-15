@@ -1,12 +1,23 @@
-from flask import Blueprint
+from flask import Blueprint, jsonify, request
 from app.config import Config
+from app.middleware.check_user import check_user
 from app.utils.proxy_handler import forward_request
 
-# Tạo Blueprint
-auth_bp = Blueprint('auth', __name__)
+auth_bp = Blueprint('auth_bp', __name__)
 
-# Route bắt tất cả request sau /api/auth/
-@auth_bp.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
-def auth_proxy(path):
-    new_path = f"api/auth/{path}"
-    return forward_request(Config.AUTH_SERVICE_URL, new_path)
+# --- AUTH ROUTES ---
+
+@auth_bp.route('register', methods=['POST'])
+def register():
+    return forward_request(Config.AUTH_SERVICE_URL, '/register')
+
+@auth_bp.route('login', methods=['POST'])
+def login():
+    return forward_request(Config.AUTH_SERVICE_URL, '/login')
+
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    # QUAN TRỌNG: Không gọi check_user() ở đây!
+    # Hãy để request đi thẳng sang Auth Service.
+    # Auth Service sẽ lo việc xóa cookie dù token có sống hay chết.
+    return forward_request(Config.AUTH_SERVICE_URL, '/logout')

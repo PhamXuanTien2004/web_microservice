@@ -1,14 +1,17 @@
+# backend\gateway-service\app\utils\proxy_handler.py
 import requests
 from flask import request, Response, jsonify
 
 def forward_request(service_url, path):
-    """
-    Hàm chung để chuyển tiếp request từ Gateway sang Microservice đích
-    """
     try:
-        target_url = f"{service_url}/{path}"
-        
-        # Forward request với method, headers, params, và body
+        # Xử lý double slash: Xóa dấu / ở cuối service_url và ở đầu path
+        clean_url = service_url.rstrip('/')
+        clean_path = path.lstrip('/')
+        target_url = f"{clean_url}/{clean_path}"
+
+        # Debug log (Nên có để biết gateway đang gọi đi đâu)
+        print(f"Forwarding to: {target_url}")
+
         resp = requests.request(
             method=request.method,
             url=target_url,
@@ -19,7 +22,6 @@ def forward_request(service_url, path):
             allow_redirects=False
         )
 
-        # Lọc headers trả về (bỏ các header hop-by-hop)
         excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
         headers = [(name, value) for (name, value) in resp.raw.headers.items()
                    if name.lower() not in excluded_headers]
@@ -27,4 +29,4 @@ def forward_request(service_url, path):
         return Response(resp.content, resp.status_code, headers)
 
     except requests.exceptions.ConnectionError:
-        return jsonify({"error": "Service unavailable", "service": service_url}), 503
+        return jsonify({"error": "Service Unavailable", "message": f"Không thể kết nối tới {service_url}"}), 503
