@@ -26,6 +26,7 @@ def jwt_required(f):
             payload = decode_token(token, token_type="access")
             # Lưu user_id vào biến global g để dùng trong controller
             g.user_id = payload['sub'] 
+            g.token_payload = payload
         except Exception as e:
             return jsonify({"message": str(e)}), 401
 

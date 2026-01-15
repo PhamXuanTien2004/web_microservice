@@ -28,3 +28,11 @@ class UserService:
         except Exception as e:
             db.session.rollback()
             raise e
+
+    @staticmethod
+    def findUserById(user_id):
+        user = Users.query.get(user_id)
+    
+        if user:
+            return user.to_json() # Trả về dữ liệu sạch (không password)
+        return None

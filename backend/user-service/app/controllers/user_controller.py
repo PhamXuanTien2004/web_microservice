@@ -1,4 +1,4 @@
-from flask import Flask, Blueprint, request, jsonify
+from flask import Flask, Blueprint, request, jsonify, g
 from app.schemas.ProfileShema import ProfileSchema
 from marshmallow import ValidationError
 from app.services.UserService import UserService
@@ -36,3 +36,16 @@ def createUser():
     
     except ValidationError as err:
         return jsonify({"errors": err.messages}), 400
+@user_bp.route('/profile', methods=['GET'])
+@jwt_required
+def getMyProfile():
+    token_info = g.token_payload 
+    user_data = UserService.findUserById(g.user_id)
+    
+    if user_data:
+        return jsonify({
+            "status": "success",
+            "token_info": token_info.get("username"), 
+            "data": user_data
+        }), 200
+    

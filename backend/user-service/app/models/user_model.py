@@ -13,3 +13,13 @@ class Users(db.Model):
     sensors = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
+    def to_json(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "email": self.email,
+            "telphone" : self.telphone,
+            "role": self.role,
+            "sensors": self.sensors,
+            "created_at": self.created_at
+            }
