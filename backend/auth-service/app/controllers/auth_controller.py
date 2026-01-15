@@ -87,55 +87,26 @@ def login():
 @auth_bp.route("/logout", methods=["POST"])
 @jwt_required
 def logout():
-
-    # 1. Debug xem cookie có tồn tại không
+    # 1. Lấy token từ Cookie (Nhiệm vụ của Controller)
     access_token = request.cookies.get("access_token_cookie")
     refresh_token = request.cookies.get("refresh_token_cookie")
-    
-    print(f"DEBUG: Access Token found: {access_token is not None}")
-    print(f"DEBUG: Refresh Token found: {refresh_token is not None}")
 
-    response = make_response(jsonify({"message": "Logout thành công"}))
-    
-    # Xóa cookie
+    # 2. Gọi Service để xử lý logic DB (Nếu có token)
+    # Dù có token hay không, ta vẫn tiến hành bước 3 (xóa cookie)
+    if access_token or refresh_token:
+        AuthService.logout_user(access_token, refresh_token)
+
+    # 3. Tạo Response và Xóa Cookie (QUAN TRỌNG)
+    response = make_response(jsonify({
+        "message": "Đăng xuất thành công",
+        "status": "success"
+    }))
+
+    # Xóa Cookie Access Token
     response.set_cookie('access_token_cookie', '', expires=0, httponly=True)
+    
+    # Xóa Cookie Refresh Token (Nhớ đúng path đã tạo lúc login)
     response.set_cookie('refresh_token_cookie', '', expires=0, httponly=True, path='/auth/refresh')
-
-    try:
-        # Xử lý Blacklist Access Token
-        if access_token:
-            decoded_acc = decode_token(access_token)
-            # Dùng .get() để tránh lỗi nếu không có jti
-            jti_acc = decoded_acc.get("jti") or access_token[-10:] 
-            exp_acc = datetime.fromtimestamp(decoded_acc["exp"])
-            
-            acc_blacklist = TokenBlacklist(
-                token=access_token, # Lưu ý độ dài
-                expired_at=exp_acc
-            )
-            db.session.add(acc_blacklist)
-            print("DEBUG: Added Access Token to Session")
-
-        # Xử lý Blacklist Refresh Token
-        if refresh_token:
-            decoded_ref = decode_token(refresh_token)
-            exp_ref = datetime.fromtimestamp(decoded_ref["exp"])
-            
-            ref_blacklist = TokenBlacklist(
-                token=refresh_token,
-                expired_at=exp_ref
-            )
-            db.session.add(ref_blacklist)
-            print("DEBUG: Added Refresh Token to Session")
-
-        # Commit DB
-        db.session.commit()
-        print("DEBUG: Commit to DB Successful!")
-
-    except Exception as e:
-        db.session.rollback() # Rollback nếu lỗi
-        print(f"🔴 LỖI CRITICAL KHI BLACKLIST: {str(e)}")
-        # Không return lỗi cho user, nhưng phải in ra console để dev biết
 
     return response, 200
 

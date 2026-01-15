@@ -17,5 +17,12 @@ class Auths(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
-    
+
+    def to_json(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+            }
 
