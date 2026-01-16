@@ -2,6 +2,7 @@
 from functools import wraps
 from flask import request, jsonify, g
 from app.services.TokenService import decode_token
+from app.models.TokenBlacklist import TokenBlacklist
 
 def jwt_required(f):
     @wraps(f)
@@ -22,15 +23,16 @@ def jwt_required(f):
             return jsonify({"message": "Token is missing"}), 401
 
         try:
-            # Decode và verify token như cũ
             payload = decode_token(token, token_type="access")
-            # Lưu user_id vào biến global g để dùng trong controller
+            
+            # KIỂM TRA BLACKLIST: Nếu token đã nằm trong DB thì không cho đi tiếp
+            is_blacklisted = TokenBlacklist.query.filter_by(token=token).first()
+            if is_blacklisted:
+                return jsonify({"message": "Token has been revoked (Already Logged out)"}), 401
+
             g.user_id = payload['sub']
-            g.role = payload.get('role', 'user')
-            g.token_payload = payload
         except Exception as e:
             return jsonify({"message": str(e)}), 401
 
         return f(*args, **kwargs)
-
     return decorated

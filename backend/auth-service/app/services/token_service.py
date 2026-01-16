@@ -40,16 +40,21 @@ def generate_refresh_token(user):
 
 def decode_token(token, token_type=None):
     try:
+        # Lấy key từ config (Sửa từ SECRET_KEY thành JWT_SECRET_KEY nếu bạn dùng Flask-JWT)
+        secret = current_app.config.get("JWT_SECRET_KEY") or current_app.config.get("SECRET_KEY")
+        
         payload = jwt.decode(
             token,
-            current_app.config["SECRET_KEY"],
+            secret,
             algorithms=["HS256"]
         )
 
         if token_type and payload.get("type") != token_type:
-            raise InvalidTokenError("Invalid token type")
+            raise Exception("Invalid token type")
 
         return payload
-    except ExpiredSignatureError:
-        raise ValueError("Token đã hết hạn")
+    except jwt.ExpiredSignatureError:
+        raise Exception("Token đã hết hạn")
+    except jwt.InvalidTokenError:
+        raise Exception("Chữ ký Token không hợp lệ")
         

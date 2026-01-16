@@ -98,8 +98,9 @@ def logout():
 
     # 2. Gọi Service để xử lý logic DB (Nếu có token)
     # Dù có token hay không, ta vẫn tiến hành bước 3 (xóa cookie)
-    if access_token or refresh_token:
-        AuthService.logout_user(access_token, refresh_token)
+    success = AuthService.logout_user(access_token, refresh_token)
+    if not success:
+         return jsonify({"message": "Lỗi hệ thống hoặc Token không hợp lệ"}), 500
 
     # 3. Tạo Response và Xóa Cookie (QUAN TRỌNG)
     response = make_response(jsonify({

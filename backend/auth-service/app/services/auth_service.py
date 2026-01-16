@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from marshmallow import ValidationError
 from sqlalchemy.exc import IntegrityError
 from app import db
-# Import chính xác từ file model của bạn
+
 from app.models.auth_model import Auths 
 from app.models.token_blacklist import TokenBlacklist
 
@@ -99,42 +99,26 @@ class AuthService:
 
     @staticmethod
     def logout_user(access_token: str, refresh_token: str):
-        """
-        Chỉ chịu trách nhiệm đưa Token vào Blacklist (Database).
-        Không xử lý Cookie hay Response ở đây.
-        """
         try:
+            if not access_token and not refresh_token:
+                return False
+
             # 1. Xử lý Access Token
             if access_token:
-                try:
-                    decoded_acc = decode_token(access_token)
-                    exp_acc = datetime.fromtimestamp(decoded_acc["exp"])
-                    acc_blacklist = TokenBlacklist(
-                        token=access_token, 
-                        expired_at=exp_acc
-                    )
-                    db.session.add(acc_blacklist)
-                except Exception as e:
-                    print(f"⚠️ Access Token invalid/expired, skip blacklist: {e}")
+                decoded_acc = decode_token(access_token) # Nếu lỗi Signature, nó sẽ nhảy xuống except ngay
+                exp_acc = datetime.fromtimestamp(decoded_acc["exp"])
+                db.session.add(TokenBlacklist(token=access_token, expired_at=exp_acc))
 
             # 2. Xử lý Refresh Token
             if refresh_token:
-                try:
-                    decoded_ref = decode_token(refresh_token, token_type="refresh") # Nhớ check type nếu cần
-                    exp_ref = datetime.fromtimestamp(decoded_ref["exp"])
-                    ref_blacklist = TokenBlacklist(
-                        token=refresh_token,
-                        expired_at=exp_ref
-                    )
-                    db.session.add(ref_blacklist)
-                except Exception as e:
-                     print(f"⚠️ Refresh Token invalid/expired, skip blacklist: {e}")
+                decoded_ref = decode_token(refresh_token, token_type="refresh")
+                exp_ref = datetime.fromtimestamp(decoded_ref["exp"])
+                db.session.add(TokenBlacklist(token=refresh_token, expired_at=exp_ref))
 
             db.session.commit()
             return True
 
         except Exception as e:
             db.session.rollback()
-            print(f"🔴 LỖI CRITICAL KHI BLACKLIST: {str(e)}")
-            # Không raise lỗi ra ngoài để quy trình logout ở Controller vẫn tiếp tục xóa cookie
+            print(f"🔴 Lỗi khi đưa token vào Blacklist: {e}")
             return False
