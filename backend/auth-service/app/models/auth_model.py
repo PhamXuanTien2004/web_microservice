@@ -1,5 +1,4 @@
 # app/models/auth_model.py
-from datetime import datetime
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -24,5 +23,4 @@ class Auths(db.Model):
             "username": self.username,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None
-            }
-
+        }

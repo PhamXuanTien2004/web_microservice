@@ -1,8 +1,9 @@
-from marshmallow import Schema, fields, validate, validates_schema, ValidationError, pre_load
-from app.models.user_model import Users
-import re
+from marshmallow import Schema, fields, validate, pre_load, EXCLUDE
 
 class ProfileSchema(Schema):
+    # 1. Thêm trường username (Bắt buộc để nhận từ Auth Service)
+    username = fields.Str(required=True)
+
     name = fields.Str(
         required=True, 
         error_messages={"required": "Name không được để trống"}
@@ -38,19 +39,14 @@ class ProfileSchema(Schema):
         error_messages={"invalid": "Sensors lỗi type (phải là số nguyên)"}
     )
 
+    # 2. QUAN TRỌNG: Cấu hình bỏ qua các trường lạ (như user_id)
+    class Meta:
+        unknown = EXCLUDE 
+
     @pre_load
     def process_null_values(self, data, **kwargs):
-        """
-        Chạy trước khi validation.
-        Nếu client gửi {"role": null} -> đổi thành {"role": "user"}
-        """
-        # Xử lý Role
         if 'role' in data and data['role'] is None:
             data['role'] = 'user'
-        
-        # Xử lý Sensors
         if 'sensors' in data and data['sensors'] is None:
             data['sensors'] = 1
-            
         return data
-

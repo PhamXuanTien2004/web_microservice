@@ -11,3 +11,5 @@ class Config:
     SQLALCHEMY_DATABASE_URI = "mysql+pymysql://auth_user:root%40root@localhost:3306/auth_service_db"
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    USER_SERVICE_URL = "http://localhost:5002/api/user"

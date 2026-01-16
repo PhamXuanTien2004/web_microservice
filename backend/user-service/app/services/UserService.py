@@ -24,7 +24,11 @@ class UserService:
             db.session.add(user)
             db.session.commit()
             return user
-        
+        except IntegrityError as e:
+            db.session.rollback()
+            # Lỗi này thường do trùng ID (hiếm) hoặc trùng Unique Key mà check ở bước 1 bị sót
+            raise ValidationError({"database": ["Dữ liệu bị trùng lặp (Email/Phone/ID)."]})
+            
         except Exception as e:
             db.session.rollback()
             raise e

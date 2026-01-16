@@ -36,6 +36,11 @@ def register():
     except ValidationError as err:
         return jsonify({"errors": err.messages}), 400
 
+    except Exception as e:
+        # Bắt các lỗi logic từ Service (ví dụ: User Service chết, DB lỗi)
+        # Tùy message bạn muốn hiển thị mà custom lại
+        return jsonify({"error": str(e)}), 500
+
 @auth_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json()

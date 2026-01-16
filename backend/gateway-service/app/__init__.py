@@ -11,7 +11,8 @@ def create_app():
     app.config.from_object(Config)
 
     # Đăng ký các Blueprint (Routes)
-    from app.routes.user_routes import auth_bp, user_bp
+    from app.routes.user_routes import user_bp
+    from app.routes.auth_routes import auth_bp
     # from app.routes.user_routes import user_routes_bp # (Tự tạo file tương tự auth)
     
     # Prefix giúp URL đẹp hơn: localhost:5000/api/auth/...
