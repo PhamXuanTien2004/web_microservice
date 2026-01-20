@@ -1,4 +1,4 @@
-# app/models/user_model.py
+# backend\user-service\app\models\user_model.py
 from app import db
 
 class Users(db.Model):

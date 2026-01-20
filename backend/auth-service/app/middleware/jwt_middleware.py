@@ -21,14 +21,6 @@ def jwt_required(f):
         if not token:
             return jsonify({"message": "Token is missing"}), 401
 
-        try:
-            # Decode và verify token như cũ
-            payload = decode_token(token, token_type="access")
-            # Lưu user_id vào biến global g để dùng trong controller
-            g.user_id = payload['sub'] 
-        except Exception as e:
-            return jsonify({"message": str(e)}), 401
-
         return f(*args, **kwargs)
 
     return decorated

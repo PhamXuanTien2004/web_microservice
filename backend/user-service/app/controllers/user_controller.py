@@ -1,7 +1,10 @@
+# backend/user-service/app/controllers/user_controller.py
+
 from flask import Flask, Blueprint, request, jsonify, g
 from app.schemas.ProfileShema import ProfileSchema
 from marshmallow import ValidationError
 from app.services.UserService import UserService
+from app.services.TokenService import decode_token
 from app.middlewares.jwt_middleware import jwt_required
 
 user_bp = Blueprint("user", __name__)
@@ -51,7 +54,10 @@ def createUser():
 @user_bp.route('/profile', methods=['GET'])
 @jwt_required
 def getMyProfile():
-    user_data = UserService.findUserById(g.user_id)
+    try:
+        user_data = UserService.findUserById(g.user_id)
+    except Exception as e:
+        return jsonify({"message": str(e)}), 401
     
     if user_data:
         return jsonify({

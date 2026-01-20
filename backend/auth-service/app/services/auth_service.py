@@ -95,6 +95,13 @@ class AuthService:
                 "error": ["Sai username hoặc password"]
             })
 
+        try:
+            auth.is_active = True
+            db.session.commit()   
+        except Exception as e:
+            db.session.rollback()
+            raise e
+
         return auth
 
     @staticmethod
@@ -105,20 +112,33 @@ class AuthService:
 
             # 1. Xử lý Access Token
             if access_token:
-                decoded_acc = decode_token(access_token) # Nếu lỗi Signature, nó sẽ nhảy xuống except ngay
+                # Thêm allow_expired=True để vẫn lấy được data từ token cũ
+                decoded_acc = decode_token(access_token, allow_expired=True) 
                 exp_acc = datetime.fromtimestamp(decoded_acc["exp"])
-                db.session.add(TokenBlacklist(token=access_token, expired_at=exp_acc))
+                
+                # Kiểm tra xem token này đã có trong blacklist chưa để tránh lỗi IntegrityError
+                if not TokenBlacklist.query.filter_by(token=access_token).first():
+                    db.session.add(TokenBlacklist(token=access_token, expired_at=exp_acc))
+
+                # Cập nhật trạng thái is_active = False
+                user_id = decoded_acc.get("sub")
+                auth = Auths.query.get(user_id)
+                if auth:
+                    auth.is_active = False
 
             # 2. Xử lý Refresh Token
             if refresh_token:
-                decoded_ref = decode_token(refresh_token, token_type="refresh")
+                decoded_ref = decode_token(refresh_token, token_type="refresh", allow_expired=True)
                 exp_ref = datetime.fromtimestamp(decoded_ref["exp"])
-                db.session.add(TokenBlacklist(token=refresh_token, expired_at=exp_ref))
+                
+                if not TokenBlacklist.query.filter_by(token=refresh_token).first():
+                    db.session.add(TokenBlacklist(token=refresh_token, expired_at=exp_ref))
 
             db.session.commit()
             return True
 
         except Exception as e:
             db.session.rollback()
-            print(f"🔴 Lỗi khi đưa token vào Blacklist: {e}")
+            # Log lỗi chi tiết để debug
+            print(f"🔴 Lỗi Logout: {str(e)}")
             return False

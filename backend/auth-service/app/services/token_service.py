@@ -1,4 +1,4 @@
-# app/services/token_service.py
+# backend\auth-service\app\services\token_service.py
 import jwt
 from datetime import datetime, timedelta
 from flask import current_app
@@ -41,7 +41,7 @@ def generate_refresh_token(user):
 def decode_token(token, token_type=None):
     try:
         # Lấy key từ config (Sửa từ SECRET_KEY thành JWT_SECRET_KEY nếu bạn dùng Flask-JWT)
-        secret = current_app.config.get("JWT_SECRET_KEY") or current_app.config.get("SECRET_KEY")
+        secret = current_app.config.get("SECRET_KEY")
         
         payload = jwt.decode(
             token,

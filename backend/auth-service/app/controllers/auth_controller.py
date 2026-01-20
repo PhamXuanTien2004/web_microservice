@@ -64,7 +64,8 @@ def login():
             "id": user.id,
             "username": user.username,
             "access": access_token,
-            "refresh": refresh_token
+            "refresh": refresh_token,
+            "is active": user.is_active
         }
     }))
 

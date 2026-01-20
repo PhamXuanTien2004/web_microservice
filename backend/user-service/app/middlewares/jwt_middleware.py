@@ -1,19 +1,20 @@
-# app/middleware/jwt_middleware.py
+# backend\user-service\app\middlewares\jwt_middleware.py
+
 from functools import wraps
-from flask import request, jsonify, g
-from app.services.TokenService import decode_token
-from app.models.TokenBlacklist import TokenBlacklist
+from flask import request, jsonify, g, current_app
+import jwt
+from datetime import datetime
 
 def jwt_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
         
-        # 1. Ưu tiên lấy từ Cookie (Bảo mật hơn)
+        # 1. Lấy token từ Cookie
         if 'access_token_cookie' in request.cookies:
             token = request.cookies.get('access_token_cookie')
         
-        # 2. Fallback: Nếu không có cookie, thử kiểm tra Header 
+        # 2. Lấy từ Header Authorization (Bearer <token>)
         elif 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
             if auth_header.startswith("Bearer "):
@@ -23,16 +24,28 @@ def jwt_required(f):
             return jsonify({"message": "Token is missing"}), 401
 
         try:
-            payload = decode_token(token, token_type="access")
+            # 3. Giải mã và kiểm tra Chữ ký + Hạn dùng
+            # PyJWT tự động kiểm tra trường 'exp' trong payload
+            secret_key = current_app.config.get('SECRET_KEY') or "SECRET_KEY"
             
-            # KIỂM TRA BLACKLIST: Nếu token đã nằm trong DB thì không cho đi tiếp
-            is_blacklisted = TokenBlacklist.query.filter_by(token=token).first()
-            if is_blacklisted:
-                return jsonify({"message": "Token has been revoked (Already Logged out)"}), 401
-
-            g.user_id = payload['sub']
+            payload = jwt.decode(
+                token, 
+                secret_key, 
+                algorithms=["HS256"]
+            )
+            
+            # 4. Trích xuất ID và lưu vào biến g (để Controller sử dụng)
+            g.user_id = int (payload.get('sub'))
+            
+        except jwt.ExpiredSignatureError:
+            return jsonify({"message": "Token đã hết hạn!"}), 401
+        except jwt.InvalidSignatureError:
+            return jsonify({"message": "Chữ ký Token không hợp lệ!"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"message": "Token không hợp lệ!"}), 401
         except Exception as e:
-            return jsonify({"message": str(e)}), 401
+            return jsonify({"message": f"Lỗi xác thực: {str(e)}"}), 401
 
         return f(*args, **kwargs)
+
     return decorated
