@@ -18,7 +18,7 @@ function App() {
         
         {/* Chỉ cho phép vào /profile nếu đã có token */}
         <Route path="/profile" element={
-          <PrivateRoute>
+          <PrivateRoute> 
             <Profile />
           </PrivateRoute>
         } />

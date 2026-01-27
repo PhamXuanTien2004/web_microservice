@@ -1,5 +1,5 @@
 import { useForm } from '@mantine/form';
-import { TextInput, PasswordInput, NumberInput, Button, Paper, Title, Grid } from '@mantine/core';
+import { TextInput, PasswordInput, NumberInput, Button, Paper, Title, Grid, Select } from '@mantine/core';
 import { authApi } from './api';
 
 export function RegisterForm() {
@@ -11,15 +11,33 @@ export function RegisterForm() {
         name: '',
         email: '',
         telphone: '',
-        role: 'admin',
-        sensors: 0,
+        role: '',
+        sensors: 1, // Mặc định là 1 thay vì 0 để hợp lệ ngay từ đầu
+      },
+    },
+
+    // Thêm validation logic
+    validate: {
+      profile: {
+        // Chỉ validate sensors khi role là 'user'
+        sensors: (value, values) => 
+          values.profile.role === 'user' && value < 1 
+            ? 'Số lượng sensor phải ít nhất là 1' 
+            : null,
+        email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Email không hợp lệ'),
       },
     },
   });
 
   const handleRegister = async (values) => {
     try {
-      const response = await authApi.post('/register', values);
+      // Nếu là admin, chúng ta có thể xóa field sensors trước khi gửi lên API nếu cần
+      const payload = { ...values };
+      if (payload.profile.role === 'admin') {
+        payload.profile.sensors = 0; 
+      }
+
+      await authApi.post('/register', payload);
       alert("Đăng ký thành công!");
     } catch (error) {
       alert("Lỗi: " + (error.response?.data?.message || "Không thể kết nối Backend"));
@@ -35,11 +53,33 @@ export function RegisterForm() {
             <TextInput label="Username" {...form.getInputProps('username')} required />
             <PasswordInput label="Password" mt="md" {...form.getInputProps('password')} required />
           </Grid.Col>
+          
           <Grid.Col span={6}>
             <TextInput label="Họ tên" {...form.getInputProps('profile.name')} />
             <TextInput label="Email" mt="xs" {...form.getInputProps('profile.email')} />
             <TextInput label="Điện thoại" mt="xs" {...form.getInputProps('profile.telphone')} />
-            <NumberInput label="Số Sensors" mt="xs" {...form.getInputProps('profile.sensors')} />
+            
+            {/* Chuyển sang Select để giới hạn lựa chọn */}
+            <Select 
+              label="Role" 
+              placeholder="Chọn vai trò"
+              mt="xs"
+              data={[
+                { value: 'admin', label: 'Admin' },
+                { value: 'user', label: 'User' },
+              ]}
+              {...form.getInputProps('profile.role')}
+            />
+
+            {/* Chỉ hiển thị Số Sensors nếu role là 'user' */}
+            {form.values.profile.role === 'user' && (
+              <NumberInput 
+                label="Số Sensors" 
+                mt="xs" 
+                min={1} // Giới hạn ở UI
+                {...form.getInputProps('profile.sensors')} 
+              />
+            )}
           </Grid.Col>
         </Grid>
         <Button type="submit" fullWidth mt="xl">Đăng ký ngay</Button>

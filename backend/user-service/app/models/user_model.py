@@ -9,8 +9,8 @@ class Users(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     telphone = db.Column(db.String(20), unique=True, nullable=True)
-    role = db.Column(db.String(5), default="User", nullable=False)
-    sensors = db.Column(db.Integer, default=1, nullable=False)
+    role = db.Column(db.String(5), default="user", nullable=False)
+    sensors = db.Column(db.Integer, default=0, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     def to_json(self):
