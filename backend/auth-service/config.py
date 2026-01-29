@@ -5,7 +5,8 @@ import os
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
-    SECRET_KEY = "SECRET_KEY"  # Nên đổi thành chuỗi ngẫu nhiên dài hơn
+    SECRET_KEY = "SECRET_KEY"  
+    JWT_SECRET_KEY = "SECRET_KEY"
 
     JWT_ACCESS_EXPIRES = 15      # phút
     JWT_REFRESH_EXPIRES = 7      # ngày

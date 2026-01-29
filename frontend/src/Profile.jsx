@@ -35,7 +35,8 @@ export function Profile() {
         <Group justify="space-between" mb="lg">
           <Title order={2}>Thông tin tài khoản</Title>
           <Badge size="lg" color="blue" variant="light">
-            {profile?.role.toUpperCase()}
+            {/* Thêm dấu ? để tránh lỗi khi profile chưa load xong */}
+            {profile?.role?.toUpperCase() || 'N/A'}
           </Badge>
         </Group>
 

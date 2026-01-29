@@ -16,13 +16,18 @@ export const userApi = axios.create({
     }
 });
 
-userApi.interceptors.request.use((config) => {
-    const token = localStorage.getItem('user_token');
-    if (token) {
-        // Gửi theo chuẩn Bearer Token
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-}, (error) => {
-    return Promise.reject(error);
-});
+userApi.interceptors.request.use(
+    (config) => {
+        // KIỂM TRA: Key này phải giống hệt key lúc bạn thực hiện localStorage.setItem() khi Login
+        const token = localStorage.getItem('access_token'); 
+        
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+            console.log("Đã đính kèm Token vào Header");
+        } else {
+            console.warn("Không tìm thấy Token trong LocalStorage");
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);

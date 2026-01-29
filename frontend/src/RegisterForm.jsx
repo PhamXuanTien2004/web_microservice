@@ -1,8 +1,10 @@
 import { useForm } from '@mantine/form';
 import { TextInput, PasswordInput, NumberInput, Button, Paper, Title, Grid, Select, Stack } from '@mantine/core';
 import { authApi } from './api';
+import { useNavigate } from 'react-router-dom';
 
 export function RegisterForm() {
+  const navigate = useNavigate();
   const form = useForm({
     initialValues: {
       username: '',
@@ -42,6 +44,8 @@ export function RegisterForm() {
       await authApi.post('/register', payload);
       alert("Đăng ký thành công!");
       form.reset();
+      // Phân luồng tới đi trang login sau khi đăng ký thành công
+      navigate('/login');
     } catch (error) {
       const backendErrors = error.response?.data?.errors;
       

@@ -41,7 +41,7 @@ export function LoginForm() {
       
       // Lưu thông tin vào LocalStorage
       // Lưu ý: Kiểm tra key trả về từ Flask của bạn (token hoặc access_token)
-      localStorage.setItem('user_token', response.data.token || response.data.access_token);
+      localStorage.setItem('access_token', response.data.token || response.data.access_token);
       localStorage.setItem('username', values.username);
 
       alert("Chào mừng " + values.username + " đã quay trở lại!");
