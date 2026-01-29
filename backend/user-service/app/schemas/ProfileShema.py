@@ -8,7 +8,10 @@ class ProfileSchema(Schema):
     
     telphone = fields.Str(
         required=True, 
-        validate=validate.Regexp(r"(84|0[3|5|7|8|9])+([0-9]{8})\b", error="Số điện thoại không hợp lệ"),
+        validate=validate.Regexp(
+            r"^(0|84)(3|5|7|8|9|9)[0-9]{8}$", 
+            error="Số điện thoại không hợp lệ"
+        ),
         error_messages={"required": "Telephone không được để trống"}
     )
 
