@@ -8,26 +8,37 @@ user_bp = Blueprint("user", __name__)
 
 @user_bp.route("/internal/users", methods=["POST"])
 def createUser():
+    # Lấy dữ liệu thô
     raw_data = request.get_json()
-    user_id = raw_data.get('user_id')
     
+    # Làm sạch các chuỗi trong dữ liệu thô
+    for key, value in raw_data.items():
+        if isinstance(value, str):
+            raw_data[key] = value.strip().lower()
+
+    # Kiểm tra xem có userdId không
+    user_id = raw_data.get('user_id')
     if not user_id:
         return jsonify({"error": "Missing user_id from Auth Service"}), 400 
 
     schema = ProfileSchema()
 
     try: 
-        # 1. Validate + Clean data
+        # Validate dữ liệu đã làm sạch
         clean_data = schema.load(raw_data)
         clean_data['id'] = user_id
 
-        # 2. Chuẩn hóa Role về chữ thường (lowercase)
-        if 'role' in clean_data:
-            clean_data['role'] = clean_data['role'].strip().lower()
+        # Kiểm tra role = admin thì sensors và topic = null
+        #          role = user  thì nhận sensors và topic
 
-        # 3. Service: Save new user data
+        if clean_data.get('role') == 'admin':
+            clean_data['sensors'] = None
+            clean_data['topic'] = None
+
+        # Gọi Service
         new_user = UserService.create_user(clean_data)
 
+        # Trả về respone
         return jsonify({
             "id": new_user.id,
             "name": new_user.name,
@@ -35,6 +46,7 @@ def createUser():
             "tel": new_user.telphone,  
             "role": new_user.role,
             "sensors": new_user.sensors,
+            "topic": new_user.topic,
             "created_at": new_user.created_at.isoformat() if hasattr(new_user.created_at, 'isoformat') else new_user.created_at
         }), 201
     
@@ -60,7 +72,8 @@ def getMyProfile():
                 "name": user_data.name,
                 "email": user_data.email,
                 "role": user_data.role,
-                "sensors": user_data.sensors
+                "sensors": user_data.sensors,
+                "topic": user_data.topic
             }
         }), 200
         

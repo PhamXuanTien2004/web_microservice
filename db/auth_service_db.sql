@@ -15,4 +15,3 @@ FLUSH PRIVILEGES;
 
 SHOW DATABASES;
 
-SELECT * FROM auth_service_db;

@@ -1,3 +1,4 @@
+# backend\auth-service\app\schemas\register_schema.py
 from marshmallow import Schema, fields, validate, validates_schema, ValidationError
 import re
 
@@ -34,10 +35,9 @@ class ProfileInputSchema(Schema):
         )
     )
 
-    sensors = fields.Integer(
-        load_default=1,  
-        error_messages={"invalid": "Sensors lỗi type (phải là số nguyên)"}
-    )
+    sensors = fields.Integer(load_default=1, allow_none=True)
+    
+    topic = fields.String(allow_none=True)
 
 
     
@@ -63,7 +63,6 @@ class RegisterSchema(Schema):
     
     @validates_schema
     def validate_register_data(self, data, **kwargs):
-        # ... (giữ nguyên logic check password của bạn, đoạn này bạn viết tốt rồi) ...
         errors = {}
         password = data.get("password")
         if password:

@@ -7,10 +7,11 @@ class Users(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=False) 
     name = db.Column(db.String(100), nullable=False)
     username = db.Column(db.String(50), unique=True, nullable=False)
-    email = db.Column(db.String(100), unique=True, nullable=False)
-    telphone = db.Column(db.String(20), unique=True, nullable=True)
-    role = db.Column(db.String(5), default="user", nullable=False)
-    sensors = db.Column(db.Integer, default=0, nullable=False)
+    email = db.Column(db.String(100), nullable=False)
+    telphone = db.Column(db.String(20), nullable=True)
+    role = db.Column(db.String(5), nullable=False)
+    topic = db.Column(db.String(255), nullable = True)
+    sensors = db.Column(db.Integer, nullable = True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     def to_json(self):
@@ -21,6 +22,7 @@ class Users(db.Model):
             "email": self.email,
             "telphone": self.telphone,
             "role": self.role,
+            "topic": self.topic,
             "sensors": self.sensors,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
