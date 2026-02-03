@@ -8,23 +8,22 @@ user_bp = Blueprint('user_bp', __name__)
 # --- USER ROUTES (Cần bảo vệ) ---
 
 # Public ROUTES
-@user_bp.route('createUser', methods=['POST'])
+@user_bp.route('/createUser', methods=['POST'])
 def creatUser():
-  
-    return forward_request(Config.USER_SERVICE_URL, '/createUser')
-    
-# Proteced ROUTES
-@user_bp.route('profile', methods=['GET']) # Profile thường là GET
+    # Forward registration from Auth Service to User Service internal endpoint
+    return forward_request(Config.USER_SERVICE_URL, '/internal/users')
+
+# Protected ROUTES
+@user_bp.route('/profile', methods=['GET'])
 def get_profile():
     # Gọi middleware
-    is_valid, result = check_user()
-    
-    if not is_valid:
-        # result lúc này là json error message
-        return result, 401
+    is_valid, payload_or_error, status = check_user()
 
-    # Nếu valid, 'result' chứa payload user info.
-    # Bạn có thể truyền user_id vào header để User Service biết ai đang gọi (Optional)
-    # headers = {'X-User-ID': str(result.get('sub'))}
-    
-    return forward_request(Config.USER_SERVICE_URL, '/profile')
+    if not is_valid:
+        return jsonify(payload_or_error), status
+
+    # Nếu valid, 'payload_or_error' chứa payload user info.
+    # Thêm header X-User-ID để User Service biết ai đang gọi
+    extra_headers = {'X-User-ID': str(payload_or_error.get('sub'))}
+
+    return forward_request(Config.USER_SERVICE_URL, '/profile', extra_headers=extra_headers)

@@ -9,12 +9,16 @@ class UserService:
 
     @staticmethod
     def create_user(data: dict) -> Users:
-        try: 
+        try:
             user = Users(**data)
 
             db.session.add(user)
             db.session.commit()
             return user
+        except IntegrityError as ie:
+            db.session.rollback()
+            # Trả về ValidationError để controller map thành 400
+            raise ValidationError({"error": ["Dữ liệu trùng lặp hoặc không hợp lệ"]})
         except Exception as e:
             db.session.rollback()
             raise e

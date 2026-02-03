@@ -1,6 +1,6 @@
 import { useForm } from '@mantine/form';
 import { TextInput, PasswordInput, NumberInput, Button, Paper, Title, Grid, Select, Stack } from '@mantine/core';
-import { authApi } from './api';
+import { authApi } from './App';
 import { useNavigate } from 'react-router-dom';
 
 export function RegisterForm() {

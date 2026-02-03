@@ -10,13 +10,19 @@ user_bp = Blueprint("user", __name__)
 def createUser():
     # Lấy dữ liệu thô
     raw_data = request.get_json()
+    if not isinstance(raw_data, dict):
+        return jsonify({"error": "Invalid payload"}), 400
     
     # Làm sạch các chuỗi trong dữ liệu thô
-    for key, value in raw_data.items():
+    # Chỉ strip toàn bộ chuỗi; chỉ lowercase cho các trường email/username
+    for key, value in list(raw_data.items()):
         if isinstance(value, str):
-            raw_data[key] = value.strip().lower()
+            cleaned = value.strip()
+            if key.lower() in ('email', 'username'):
+                cleaned = cleaned.lower()
+            raw_data[key] = cleaned
 
-    # Kiểm tra xem có userdId không
+    # Kiểm tra xem có user_id không
     user_id = raw_data.get('user_id')
     if not user_id:
         return jsonify({"error": "Missing user_id from Auth Service"}), 400 
@@ -26,7 +32,11 @@ def createUser():
     try: 
         # Validate dữ liệu đã làm sạch
         clean_data = schema.load(raw_data)
-        clean_data['id'] = user_id
+        # đảm bảo id là int nếu có
+        try:
+            clean_data['id'] = int(user_id)
+        except Exception:
+            clean_data['id'] = user_id
 
         # Kiểm tra role = admin thì sensors và topic = null
         #          role = user  thì nhận sensors và topic
@@ -53,7 +63,7 @@ def createUser():
     except ValidationError as err:
         return jsonify({"errors": err.messages}), 400
     except Exception as e:
-        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
+        return jsonify({"error": "Internal Server Error"}), 500
 
 @user_bp.route('/profile', methods=['GET'])
 @jwt_required

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Container, Paper, Title, Text, Group, Badge, Loader, Button } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import { userApi } from './api'; // Import instance kết nối cổng 5002
+import { userService } from './services/userService';
 
 export function Profile() {
   const [profile, setProfile] = useState(null);
@@ -11,9 +11,9 @@ export function Profile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        // Lấy thông tin từ cổng 5002
-        // Lưu ý: Nếu backend yêu cầu Token, bạn cần thêm Header Authorization
-        const response = await userApi.get('/profile');
+        // Lấy thông tin profile qua Gateway
+        const response = await userService.getMyProfile();
+        // Backend trả { status, data: { id, name, email, role, sensors, topic } }
         setProfile(response.data.data);
       } catch (error) {
         console.error("Lỗi lấy thông tin profile:", error);
@@ -42,13 +42,10 @@ export function Profile() {
 
         <div className="space-y-4">
           <Text size="sm"><strong>Họ tên:</strong> {profile?.name}</Text>
-          <Text size="sm"><strong>Username:</strong> {profile?.username}</Text>
           <Text size="sm"><strong>Email:</strong> {profile?.email}</Text>
-          <Text size="sm"><strong>Điện thoại:</strong> {profile?.telphone}</Text>
-          <Text size="sm"><strong>Số Sensors:</strong> {profile?.sensors}</Text>
-          <Text size="sm" c="dimmed">
-            <strong>Ngày tạo:</strong> {new Date(profile?.created_at).toLocaleString()}
-          </Text>
+          <Text size="sm"><strong>Role:</strong> {profile?.role}</Text>
+          <Text size="sm"><strong>Số Sensors:</strong> {profile?.sensors ?? '—'}</Text>
+          <Text size="sm"><strong>Topic:</strong> {profile?.topic ?? '—'}</Text>
         </div>
 
         <Button fullWidth mt="xl" color="red" variant="outline" 

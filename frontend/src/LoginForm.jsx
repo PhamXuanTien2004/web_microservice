@@ -1,9 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from '@mantine/form';
 import { TextInput, PasswordInput, Button, Paper, Title, Container, Text } from '@mantine/core';
-import { authApi } from "./api"; // Đã sửa từ ./app thành ./api theo thảo luận trước
+import { authService } from './services/authService';
 
-export function LoginForm() {
+export function LoginForm({ onSuccess }) {
   const navigate = useNavigate();
 
   const form = useForm({
@@ -33,23 +33,27 @@ export function LoginForm() {
     },
   });
 
-  // Đặt hàm handleLogin ra ngoài useForm
   const handleLogin = async (values) => {
     try {
-      // Gửi yêu cầu tới Flask Auth Service (Port 5001)
-      const response = await authApi.post('/login', values);
+      // 1. Gửi yêu cầu đăng nhập
+      const response = await authService.login(values.username, values.password);
       
-      // Lưu thông tin vào LocalStorage
-      // Lưu ý: Kiểm tra key trả về từ Flask của bạn (token hoặc access_token)
-      localStorage.setItem('access_token', response.data.token || response.data.access_token);
-      localStorage.setItem('username', values.username);
+      // 2. Chỉ lưu các thông tin không nhạy cảm (như username) để hiển thị giao diện
+      // Token đã được trình duyệt tự quản lý trong Cookie HttpOnly
+      localStorage.setItem('username', response.data.user.username);
+      localStorage.setItem('is_active', response.data.user.is_active);
 
-      alert("Chào mừng " + values.username + " đã quay trở lại!");
+      // Gọi callback onSuccess nếu được cung cấp để parent cập nhật
+      if (onSuccess) await onSuccess();
 
-      // Chuyển hướng sang trang profile
-      navigate('/profile'); 
+      alert("Chào mừng " + response.data.user.username + " đã quay trở lại!");
+
+      // 3. Điều hướng nội bộ trong React App
+      navigate('/user/profile'); 
+      
     } catch (error) {
-      const errorMsg = error.response?.data?.message || "Sai username hoặc password";
+      // Khớp với key "error" trả về từ Flask
+      const errorMsg = error.response?.data?.error || "Đã có lỗi xảy ra, vui lòng thử lại";
       alert("Lỗi đăng nhập: " + errorMsg);
     }
   };
@@ -83,7 +87,7 @@ export function LoginForm() {
           </Button>
           
           <Text ta="center" mt="md">
-            Chưa có tài khoản? <Link to="/register" style={{ color: 'blue' }}>Đăng ký ngay</Link>
+            Chưa có tài khoản? <Link to="/auth/register">Đăng ký ngay</Link>
           </Text>
         </form>
       </Paper>

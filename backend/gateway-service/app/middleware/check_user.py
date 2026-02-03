@@ -4,9 +4,13 @@ from flask import request, jsonify, current_app
 def check_user():
     """
     Kiểm tra Token (Ưu tiên lấy từ Cookie -> sau đó mới check Header nếu cần)
+
+    Trả về tuple:
+      (True, payload, None) khi thành công
+      (False, error_dict, status_code) khi thất bại
     """
     token = None
-    
+
     # CÁCH 1: Lấy từ Cookie (Khuyên dùng cho Web App)
     token = request.cookies.get('access_token_cookie')
 
@@ -18,12 +22,12 @@ def check_user():
 
     # Nếu tìm cả 2 nơi đều không thấy
     if not token:
-        return False, jsonify({"error": "Unauthorized", "message": "Không tìm thấy Access Token"})
+        return False, {"error": "Unauthorized", "message": "Không tìm thấy Access Token"}, 401
 
     # Giải mã Token
     try:
         secret_key = current_app.config.get("SECRET_KEY")
-        
+
         payload = jwt.decode(
             token,
             secret_key,
@@ -31,15 +35,15 @@ def check_user():
         )
 
         if payload.get("type") != "access":
-            return False, jsonify({"error": "Invalid Token Type", "message": "Đây không phải là Access Token"})
+            return False, {"error": "Invalid Token Type", "message": "Đây không phải là Access Token"}, 401
 
         # --- THÀNH CÔNG ---
         # Trả về payload để dùng nếu cần (ví dụ lấy user_id forward sang service khác)
-        return True, payload
+        return True, payload, None
 
     except jwt.ExpiredSignatureError:
-        return False, jsonify({"error": "Token Expired", "message": "Phiên đăng nhập hết hạn"})
+        return False, {"error": "Token Expired", "message": "Phiên đăng nhập hết hạn"}, 401
     except jwt.InvalidTokenError:
-        return False, jsonify({"error": "Invalid Token", "message": "Token không hợp lệ"})
+        return False, {"error": "Invalid Token", "message": "Token không hợp lệ"}, 401
     except Exception as e:
-        return False, jsonify({"error": "Internal Error", "message": str(e)}) 
+        return False, {"error": "Internal Error", "message": str(e)}, 500

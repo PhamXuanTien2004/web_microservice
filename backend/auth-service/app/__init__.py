@@ -14,26 +14,9 @@ def create_app():
 
     db.init_app(app)
     migrate.init_app(app, db)
-    # app.config['SECRET_KEY'] = 'your-very-secure-secret-key' 
-    # app.config['JWT_SECRET_KEY'] = 'your-very-secure-secret-key'
     
     # Khởi tạo JWTManager tại đây
     jwt = JWTManager(app)
-
-    # ---------------------------------------------------------
-    # 2. Cấu hình CORS tại đây
-    
-    # Cách 2: (KHUYÊN DÙNG) Chỉ cho phép Frontend Vue gọi vào
-    # Giả sử Vue chạy ở http://localhost:5173
-    CORS(app, resources={
-        r"/api/*": {  # Chỉ áp dụng cho các route bắt đầu bằng /api
-            "origins": ["http://localhost:5173", "http://localhost:5001"],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
-            "supports_credentials": True # Quan trọng nếu bạn dùng Cookie/Session sau này
-        }
-    })
-    # ---------------------------------------------------------
 
     from app.controllers.auth_controller import auth_bp
 

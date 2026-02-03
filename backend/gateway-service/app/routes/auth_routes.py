@@ -7,11 +7,11 @@ auth_bp = Blueprint('auth_bp', __name__)
 
 # --- AUTH ROUTES ---
 
-@auth_bp.route('register', methods=['POST'])
+@auth_bp.route('/register', methods=['POST'])
 def register():
     return forward_request(Config.AUTH_SERVICE_URL, '/register')
 
-@auth_bp.route('login', methods=['POST'])
+@auth_bp.route('/login', methods=['POST'])
 def login():
     return forward_request(Config.AUTH_SERVICE_URL, '/login')
 

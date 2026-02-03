@@ -10,15 +10,18 @@ def jwt_required(f):
     def decorated(*args, **kwargs):
         token = None
         
-        # 1. Lấy token từ Cookie
-        if 'access_token_cookie' in request.cookies:
-            token = request.cookies.get('access_token_cookie')
-        
-        # 2. Lấy từ Header Authorization (Bearer <token>)
-        elif 'Authorization' in request.headers:
+        # Ưu tiên lấy từ Header nếu có và hợp lệ
+        if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
             if auth_header.startswith("Bearer "):
-                token = auth_header.split(" ")[1]
+                temp_token = auth_header.split(" ")[1]
+                # CHỈ lấy nếu token không phải là chuỗi "undefined" hoặc rỗng
+                if temp_token and temp_token != "undefined" and temp_token != "null":
+                    token = temp_token
+        
+        # Nếu Header không có token hợp lệ, mới lấy từ Cookie
+        if not token and 'access_token_cookie' in request.cookies:
+            token = request.cookies.get('access_token_cookie')
 
         if not token:
             return jsonify({"message": "Token is missing"}), 401

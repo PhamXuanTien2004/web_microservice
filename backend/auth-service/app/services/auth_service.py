@@ -1,7 +1,7 @@
 import requests
 from datetime import datetime
 from flask import current_app
-from flask_jwt_extended import decode_token
+from app.services.token_service import decode_token
 from werkzeug.security import generate_password_hash, check_password_hash
 from marshmallow import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -25,14 +25,22 @@ class AuthService:
 
         # Lấy phần profile tách riêng
         profile_data = data.get('profile', {})
+
+        # Mapping thủ công các trường quan trọng từ cấp ngoài cùng vào profile_data
+        # Lưu ý: frontend dùng 'telphone' nên map đúng tên trường
+        fields_to_map = ['email', 'name', 'telphone', 'role']
+        for field in fields_to_map:
+            if field in data and field not in profile_data:
+                profile_data[field] = data[field]
         
         # 2. Tạo User bên Auth Service
         new_auth = Auths(username=data["username"])
         new_auth.set_password(data["password"])
 
         try:
+            # Thêm vào session và flush để lấy id mà chưa commit
             db.session.add(new_auth)
-            db.session.commit()
+            db.session.flush()
         except IntegrityError:
             db.session.rollback()
             raise ValidationError({"error": ["Dữ liệu Username đã tồn tại trong hệ thống."]})
@@ -58,16 +66,13 @@ class AuthService:
             
             # Gửi request POST
             response = requests.post(target_url, json=profile_payload, timeout=5)
-            
             # Raise lỗi nếu User Service trả về 4xx hoặc 5xx
-            response.raise_for_status() 
+            response.raise_for_status()
 
         except requests.exceptions.RequestException as e:
-            # --- Rollback: Xóa user bên Auth nếu bên User Service lỗi ---
+            # --- Rollback: Undo session nếu User Service lỗi ---
             print(f"User Service failed: {e}. Rolling back Auth...") 
-            
-            db.session.delete(new_auth)
-            db.session.commit()
+            db.session.rollback()
             
             # Cố gắng đọc lỗi chi tiết từ User Service gửi về
             error_msg = "Hệ thống đang bận, không thể tạo hồ sơ người dùng lúc này."
@@ -83,6 +88,13 @@ class AuthService:
             
             # Ném lỗi ra để Controller bắt
             raise Exception(error_msg)
+
+        # Nếu tới đây không có exception nghĩa là User Service OK -> commit toàn bộ
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
 
         return new_auth
 
@@ -110,10 +122,16 @@ class AuthService:
             if not access_token and not refresh_token:
                 return False
 
+            # Ensure tokens are str
+            if isinstance(access_token, bytes):
+                access_token = access_token.decode()
+            if isinstance(refresh_token, bytes):
+                refresh_token = refresh_token.decode()
+
             # 1. Xử lý Access Token
             if access_token:
                 # Thêm allow_expired=True để vẫn lấy được data từ token cũ
-                decoded_acc = decode_token(access_token, allow_expired=True) 
+                decoded_acc = decode_token(access_token, token_type=None, allow_expired=True)
                 exp_acc = datetime.fromtimestamp(decoded_acc["exp"])
                 
                 # Kiểm tra xem token này đã có trong blacklist chưa để tránh lỗi IntegrityError
