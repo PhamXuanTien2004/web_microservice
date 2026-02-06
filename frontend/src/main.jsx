@@ -1,19 +1,28 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
 import './index.css'
 
-// 1. Import MantineProvider và file CSS của Mantine
 import { MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+import { Landing } from './Landing'
+import { Login } from './Login'
+import { Register } from './Register'
+import { Profile } from './Profile';
+import Admin from './Admin';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {/* 2. Bọc App bằng MantineProvider */}
     <MantineProvider withGlobalStyles withNormalizeCSS>
       <BrowserRouter>
-        <App />
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/auth/login" element={<Login />} />
+          <Route path="/auth/register" element={<Register />} />
+          <Route path="/user/profile" element={<Profile />} />
+          <Route path="/admin" element={<Admin />} />
+        </Routes>
       </BrowserRouter>
     </MantineProvider>
   </React.StrictMode>,

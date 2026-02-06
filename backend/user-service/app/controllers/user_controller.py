@@ -79,11 +79,14 @@ def getMyProfile():
             "status": "success", 
             "data": {
                 "id": user_data.id,
+                "username": user_data.username,
                 "name": user_data.name,
                 "email": user_data.email,
+                "telphone": user_data.telphone,
                 "role": user_data.role,
                 "sensors": user_data.sensors,
-                "topic": user_data.topic
+                "topic": user_data.topic,
+                "created_at": user_data.created_at.isoformat() if hasattr(user_data.created_at, 'isoformat') else user_data.created_at
             }
         }), 200
         

@@ -3,7 +3,7 @@ import { useForm } from '@mantine/form';
 import { TextInput, PasswordInput, Button, Paper, Title, Container, Text } from '@mantine/core';
 import { authService } from './services/authService';
 
-export function LoginForm({ onSuccess }) {
+export function LoginForm() {
   const navigate = useNavigate();
 
   const form = useForm({
@@ -11,7 +11,6 @@ export function LoginForm({ onSuccess }) {
       username: '',
       password: '',
     },
-    // Đồng bộ Validation với Backend Flask/Marshmallow
     validate: {
       username: (value) => {
         if (!value) return 'Username không được để trống';
@@ -35,24 +34,15 @@ export function LoginForm({ onSuccess }) {
 
   const handleLogin = async (values) => {
     try {
-      // 1. Gửi yêu cầu đăng nhập
       const response = await authService.login(values.username, values.password);
       
-      // 2. Chỉ lưu các thông tin không nhạy cảm (như username) để hiển thị giao diện
-      // Token đã được trình duyệt tự quản lý trong Cookie HttpOnly
       localStorage.setItem('username', response.data.user.username);
       localStorage.setItem('is_active', response.data.user.is_active);
 
-      // Gọi callback onSuccess nếu được cung cấp để parent cập nhật
-      if (onSuccess) await onSuccess();
-
       alert("Chào mừng " + response.data.user.username + " đã quay trở lại!");
-
-      // 3. Điều hướng nội bộ trong React App
       navigate('/user/profile'); 
       
     } catch (error) {
-      // Khớp với key "error" trả về từ Flask
       const errorMsg = error.response?.data?.error || "Đã có lỗi xảy ra, vui lòng thử lại";
       alert("Lỗi đăng nhập: " + errorMsg);
     }

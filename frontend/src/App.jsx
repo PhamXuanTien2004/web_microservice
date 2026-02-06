@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { MantineProvider, Container, Group, Button, Avatar, Text, Card, Box } from '@mantine/core';
+import { Container, Group, Button, Avatar, Text, Box } from '@mantine/core';
+import { Link, useNavigate } from 'react-router-dom';
 import { authService } from './services/authService';
 import { userService } from './services/userService';
-import { LoginForm } from './LoginForm';
 
 function App() {
   const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => { checkLoginStatus(); }, []);
 
@@ -22,17 +23,22 @@ function App() {
     try {
       await authService.logout();
       setUser(null);
+      localStorage.clear();
+      alert("Bạn đã đăng xuất thành công");
+      navigate('/');
     } catch (err) {
       console.error(err);
     }
   };
 
   return (
-    <MantineProvider withGlobalStyles withNormalizeCSS>
+    <>
       <Box px="md" py="sm" sx={{ borderBottom: '1px solid #eee' }}>
         <Group position="apart">
           <Text weight={700}>My Microservices App</Text>
           <Group>
+            <Button component={Link} to="/admin" variant="subtle">Admin</Button>
+
             {user ? (
               <Group>
                 <Avatar radius="xl">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</Avatar>
@@ -45,19 +51,15 @@ function App() {
       </Box>
 
       <Container size="sm" mt="md">
-        {!user ? (
-          <Card shadow="sm" p="lg" radius="md">
-            <LoginForm onSuccess={checkLoginStatus} />
-          </Card>
-        ) : (
-          <Card shadow="sm" p="lg" radius="md">
+        {user ? (
+          <div>
             <Text size="xl" weight={700}>Xin chào, {user.name}</Text>
             <Text color="dimmed">Email: {user.email}</Text>
             <Text mt="md">Role: {user.role}</Text>
-          </Card>
-        )}
+          </div>
+        ) : null}
       </Container>
-    </MantineProvider>
+    </>
   );
 }
 
