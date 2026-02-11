@@ -14,7 +14,7 @@ export function RegisterForm() {
       email: '',
       name: '',
       telphone: '',
-      role: 'user',
+      role: '',
       sensors: 1,
       topic: '',
     },
