@@ -1,3 +1,5 @@
+# docker-compose.yml
+
 version: '3.8'
 
 services:
@@ -6,6 +8,7 @@ services:
     image: mysql:8.0
     container_name: iot-mysql
     restart: always
+    env_file: .env
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
@@ -41,10 +44,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # ===== AUTH SERVICE (Đã chuyển về đúng mục services) =====
+  auth-service:
+    build: ./service/auth-service
+    container_name: iot-auth-service
+    restart: always
+    ports:
+      - "${AUTH_SERVICE_PORT}:5001"
+    env_file:
+      - ./service/auth-service/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - iot-network
+
+# ===== NETWORKS =====
 networks:
   iot-network:
     driver: bridge
 
+# ===== VOLUMES =====
 volumes:
   mysql_data:
   redis_data:

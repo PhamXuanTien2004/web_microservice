@@ -28,12 +28,12 @@ SELECT '✅ Sensor types inserted' AS status;
 
 INSERT INTO users (username, email, password_hash, phone, role, is_active) VALUES
 -- Admin user
-('admin', 'admin@iotmonitoring.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5qdgJ7T5zZ5S6', '+84901234567', 'admin', TRUE),
+('admin', 'admin@iotmonitoring.com', '$2a$12$JXuTdDVuAayZacr51Rck7.rzyTmxfF46AnLDYKS3/IexDcJ.FVZJm', '+84901234567', 'admin', TRUE),
 
 -- Regular users
-('john_doe', 'john.doe@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5qdgJ7T5zZ5S6', '+84907654321', 'user', TRUE),
-('jane_smith', 'jane.smith@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5qdgJ7T5zZ5S6', '+84909876543', 'user', TRUE),
-('test_user', 'test@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5qdgJ7T5zZ5S6', '+84912345678', 'user', TRUE);
+('john_doe', 'john.doe@example.com', '$2a$12$JXuTdDVuAayZacr51Rck7.rzyTmxfF46AnLDYKS3/IexDcJ.FVZJm', '+84907654321', 'user', TRUE),
+('jane_smith', 'jane.smith@example.com', '$2a$12$JXuTdDVuAayZacr51Rck7.rzyTmxfF46AnLDYKS3/IexDcJ.FVZJm', '+84909876543', 'user', TRUE),
+('test_user', 'test@example.com', '$2a$12$JXuTdDVuAayZacr51Rck7.rzyTmxfF46AnLDYKS3/IexDcJ.FVZJm', '+84912345678', 'user', TRUE);
 
 SELECT '✅ Users inserted' AS status;
 

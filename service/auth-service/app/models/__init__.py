@@ -1,2 +1,2 @@
-from .auth_model import Auths
+from .auth_model import User    
 from .token_blacklist import TokenBlacklist

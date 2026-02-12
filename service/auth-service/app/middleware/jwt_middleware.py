@@ -1,46 +1,92 @@
-# app/middleware/jwt_middleware.py
-from functools import wraps
-from flask import request, jsonify, g
-from app.services.token_service import decode_token
-import jwt # Nếu hàm decode_token của bạn raise lỗi thư viện jwt
+"""
+jwt_middleware.py
+─────────────────
+Đăng ký các callback cho Flask-JWT-Extended.
 
-def jwt_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        
-        # 1. Ưu tiên lấy từ Cookie (Logic của bạn đúng rồi)
-        if 'access_token_cookie' in request.cookies:
-            token = request.cookies.get('access_token_cookie')
-        
-        # 2. Fallback: Check Header
-        elif 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            if auth_header.startswith("Bearer "):
-                token = auth_header.split(" ")[1]
+Vai trò: Tùy chỉnh hành vi của JWT — thay vì trả về
+lỗi mặc định (HTML/generic), trả về JSON chuẩn của project.
 
-        if not token:
-            return jsonify({"message": "Token is missing"}), 401
+Cách hoạt động:
+    Flask-JWT-Extended gọi các callback này khi:
+    - Token hết hạn (@jwt.expired_token_loader)
+    - Token không hợp lệ (@jwt.invalid_token_loader)
+    - Thiếu token trong header (@jwt.unauthorized_loader)
+    - Cần kiểm tra token có bị revoke không (@jwt.token_in_blocklist_loader)
+"""
 
-        # --- PHẦN BỔ SUNG QUAN TRỌNG ---
-        try:
-            # 3. Xác thực và giải mã token
-            # Hàm này sẽ ném lỗi nếu token hết hạn hoặc sai chữ ký
-            payload = decode_token(token) 
-            
-            # 4. Gắn thông tin vào biến g để Controller sử dụng
-            # Giả sử trong token bạn lưu user_id ở key 'sub' hoặc 'id'
-            g.user_id = payload.get("sub") 
-            g.user_role = payload.get("role") # (Tùy chọn) Lưu thêm role nếu cần
-            
-        except Exception as e:
-            # Trả về 401 nếu token sai/hết hạn
-            return jsonify({
-                "message": "Invalid or Expired Token", 
-                "error": str(e)
-            }), 401
-        # -------------------------------
+from flask_jwt_extended import JWTManager
+from app.services.token_service import TokenService
 
-        return f(*args, **kwargs)
 
-    return decorated
+def register_jwt_callbacks(jwt: JWTManager):
+    """
+    Đăng ký tất cả JWT callbacks.
+    Gọi trong create_app() sau khi init jwt.
+
+    Args:
+        jwt: JWTManager instance đã được init_app()
+    """
+
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        """
+        Callback quan trọng nhất.
+
+        Flask-JWT-Extended gọi hàm này TRƯỚC KHI xử lý request
+        khi có @jwt_required() decorator.
+
+        Nếu trả về True → JWT-Extended tự động từ chối request với 401.
+        Nếu trả về False → Request tiếp tục vào controller.
+
+        Flow:
+            Request → Header "Authorization: Bearer eyJ..."
+                → Flask-JWT-Extended decode token
+                → Gọi hàm này với jti
+                → True: chặn, False: tiếp tục
+        """
+        jti = jwt_payload.get("jti")
+        return TokenService.is_token_blacklisted(jti)
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        """Token hết hạn → 401 với thông báo rõ ràng."""
+        return {
+            "success": False,
+            "error": {
+                "code": "TOKEN_EXPIRED",
+                "message": "Token đã hết hạn. Vui lòng đăng nhập lại.",
+            },
+        }, 401
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error_string):
+        """Token sai format hoặc bị chỉnh sửa → 401."""
+        return {
+            "success": False,
+            "error": {
+                "code": "INVALID_TOKEN",
+                "message": "Token không hợp lệ.",
+            },
+        }, 401
+
+    @jwt.unauthorized_loader
+    def missing_token_callback(error_string):
+        """Thiếu Authorization header → 401."""
+        return {
+            "success": False,
+            "error": {
+                "code": "MISSING_TOKEN",
+                "message": "Yêu cầu xác thực. Vui lòng đăng nhập.",
+            },
+        }, 401
+
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        """Token đã bị revoke (nằm trong blacklist) → 401."""
+        return {
+            "success": False,
+            "error": {
+                "code": "TOKEN_REVOKED",
+                "message": "Token đã bị thu hồi. Vui lòng đăng nhập lại.",
+            },
+        }, 401

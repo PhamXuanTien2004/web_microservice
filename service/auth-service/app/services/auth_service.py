@@ -1,162 +1,271 @@
-import requests
-from datetime import datetime
-from flask import current_app
-from app.services.token_service import decode_token
-from werkzeug.security import generate_password_hash, check_password_hash
-from marshmallow import ValidationError
-from sqlalchemy.exc import IntegrityError
-from app import db
+from app.models.auth_model import User
+from app.services.token_service import TokenService
+from app.extensions import db
 
-from app.models.auth_model import Auths 
-from app.models.token_blacklist import TokenBlacklist
 
 class AuthService:
+    """
+    Xử lý business logic của authentication.
+
+    AuthService biết về "việc gì cần làm":
+        - Kiểm tra user tồn tại không
+        - Kiểm tra password đúng không
+        - User có bị inactive không
+        - Gọi TokenService để tạo/hủy tokens
+
+    Tách biệt với TokenService vì:
+        - AuthService quan tâm đến USER (có tồn tại, có hợp lệ)
+        - TokenService quan tâm đến TOKEN (tạo, hủy, kiểm tra)
+    """
 
     @staticmethod
-    def register_user(data: dict) -> Auths:
+    def login(username: str, password: str) -> tuple:
         """
-        data: dict đã được validate bởi RegisterSchema
+        Xử lý đăng nhập.
+
+        Luồng:
+            1. Tìm user theo username
+            2. Kiểm tra user tồn tại
+            3. Kiểm tra user active
+            4. Kiểm tra password
+            5. Tạo và trả về tokens
+
+        Args:
+            username: Tên đăng nhập
+            password: Mật khẩu plain text
+
+        Returns:
+            tuple (result_dict, http_status_code)
+
+            Success (200):
+                {
+                    "success": True,
+                    "data": {
+                        "access_token": "eyJ...",
+                        "refresh_token": "eyJ...",
+                        "token_type": "Bearer",
+                        "expires_in": 3600,
+                        "user": { id, username, email, role }
+                    }
+                }
+
+            Failure (401):
+                {
+                    "success": False,
+                    "error": {
+                        "code": "INVALID_CREDENTIALS",
+                        "message": "Sai username hoặc password."
+                    }
+                }
         """
-        # 1. Kiểm tra trùng username
-        if Auths.query.filter_by(username=data["username"]).first():
-            raise ValidationError({
-                "username": ["Username đã tồn tại"]
-            })
+        # 1. Tìm user theo username
+        user = User.find_by_username(username)
 
-        # Lấy phần profile tách riêng
-        profile_data = data.get('profile', {})
+        # 2. Kiểm tra user tồn tại
+        #    Dùng thông báo mơ hồ → không tiết lộ username có tồn tại không
+        if user is None:
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_CREDENTIALS",
+                    "message": "Sai username ",
+                },
+            }, 401
 
-        # Mapping thủ công các trường quan trọng từ cấp ngoài cùng vào profile_data
-        # Lưu ý: frontend dùng 'telphone' nên map đúng tên trường
-        fields_to_map = ['email', 'name', 'telphone', 'role']
-        for field in fields_to_map:
-            if field in data and field not in profile_data:
-                profile_data[field] = data[field]
-        
-        # 2. Tạo User bên Auth Service
-        new_auth = Auths(username=data["username"])
-        new_auth.set_password(data["password"])
+        # 3. Kiểm tra user có bị vô hiệu hóa không
+        if not user.is_active:
+            return {
+                "success": False,
+                "error": {
+                    "code": "ACCOUNT_DISABLED",
+                    "message": "Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ admin.",
+                },
+            }, 403
 
-        try:
-            # Thêm vào session và flush để lấy id mà chưa commit
-            db.session.add(new_auth)
-            db.session.flush()
-        except IntegrityError:
-            db.session.rollback()
-            raise ValidationError({"error": ["Dữ liệu Username đã tồn tại trong hệ thống."]})
-        except Exception as e:
-            db.session.rollback()
-            raise e
+        # 4. Kiểm tra password
+        if not user.check_password(password):
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_CREDENTIALS",
+                    "message": "Sai password.",
+                },
+            }, 401
 
-        # 3. Gọi Service User để lưu thông tin Profile
-        # --- QUAN TRỌNG: Bung toàn bộ dữ liệu profile vào payload ---
-        profile_payload = {
-            'user_id': new_auth.id,
-            'username': new_auth.username,
-            **profile_data 
-        }
-        # ---------------------------------------------------------------
+        # 5. Tạo tokens
+        tokens = TokenService.create_tokens(user)
 
-        try:
-            # Lấy URL từ config (đã sửa thành http://localhost:5002/api/user)
-            user_service_url = current_app.config.get('USER_SERVICE_URL')
-            
-            # Ghép chuỗi URL: /api/user + /internal/users
-            target_url = f"{user_service_url}/internal/users"
-            
-            # Gửi request POST
-            response = requests.post(target_url, json=profile_payload, timeout=5)
-            # Raise lỗi nếu User Service trả về 4xx hoặc 5xx
-            response.raise_for_status()
-
-        except requests.exceptions.RequestException as e:
-            # --- Rollback: Undo session nếu User Service lỗi ---
-            print(f"User Service failed: {e}. Rolling back Auth...") 
-            db.session.rollback()
-            
-            # Cố gắng đọc lỗi chi tiết từ User Service gửi về
-            error_msg = "Hệ thống đang bận, không thể tạo hồ sơ người dùng lúc này."
-            if e.response is not None:
-                try:
-                    error_json = e.response.json()
-                    if "errors" in error_json:
-                        error_msg = error_json["errors"]
-                    elif "error" in error_json:
-                        error_msg = error_json["error"]
-                except:
-                    pass
-            
-            # Ném lỗi ra để Controller bắt
-            raise Exception(error_msg)
-
-        # Nếu tới đây không có exception nghĩa là User Service OK -> commit toàn bộ
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            raise
-
-        return new_auth
+        return {
+            "success": True,
+            "data": {
+                **tokens,
+                "user": user.to_dict(),
+            },
+        }, 200
 
     @staticmethod
-    def login_user(username: str, password: str) -> Auths:
-        auth = Auths.query.filter_by(username=username).first()
+    def logout(access_token_jti: str, refresh_token_jti: str,
+               user_id: int, access_expires_at, refresh_expires_at) -> tuple:
+        """
+        Xử lý đăng xuất.
 
-        if not auth or not auth.check_password(password):
-            raise ValidationError({
-                "error": ["Sai username hoặc password"]
-            })
+        Blacklist cả access token VÀ refresh token.
+        Sau đó cả 2 token đều không dùng được nữa.
 
-        try:
-            auth.is_active = True
-            db.session.commit()   
-        except Exception as e:
-            db.session.rollback()
-            raise e
+        Args:
+            access_token_jti:   JTI của access token hiện tại
+            refresh_token_jti:  JTI của refresh token (lấy từ request body)
+            user_id:            ID của user đang logout
+            access_expires_at:  Expiry datetime của access token
+            refresh_expires_at: Expiry datetime của refresh token
 
-        return auth
+        Returns:
+            tuple (result_dict, http_status_code)
+        """
+        # Blacklist access token
+        TokenService.blacklist_token(
+            jti=access_token_jti,
+            token_type="access",
+            user_id=user_id,
+            expires_at=access_expires_at,
+        )
+
+        # Blacklist refresh token (nếu được cung cấp)
+        if refresh_token_jti:
+            TokenService.blacklist_token(
+                jti=refresh_token_jti,
+                token_type="refresh",
+                user_id=user_id,
+                expires_at=refresh_expires_at,
+            )
+
+        return {"success": True, "message": "Đăng xuất thành công."}, 200
 
     @staticmethod
-    def logout_user(access_token: str, refresh_token: str):
-        try:
-            if not access_token and not refresh_token:
-                return False
+    def refresh(user_id: int, refresh_token_jti: str, refresh_expires_at) -> tuple:
+        """
+        Tạo access token mới từ refresh token.
 
-            # Ensure tokens are str
-            if isinstance(access_token, bytes):
-                access_token = access_token.decode()
-            if isinstance(refresh_token, bytes):
-                refresh_token = refresh_token.decode()
+        Luồng:
+            1. Tìm user theo user_id
+            2. Kiểm tra user còn active không
+            3. Blacklist refresh token cũ (optional: rotate refresh token)
+            4. Tạo và trả về access token mới
 
-            # 1. Xử lý Access Token
-            if access_token:
-                # Thêm allow_expired=True để vẫn lấy được data từ token cũ
-                decoded_acc = decode_token(access_token, token_type=None, allow_expired=True)
-                exp_acc = datetime.fromtimestamp(decoded_acc["exp"])
-                
-                # Kiểm tra xem token này đã có trong blacklist chưa để tránh lỗi IntegrityError
-                if not TokenBlacklist.query.filter_by(token=access_token).first():
-                    db.session.add(TokenBlacklist(token=access_token, expired_at=exp_acc))
+        Args:
+            user_id:            ID của user (từ JWT identity)
+            refresh_token_jti:  JTI của refresh token hiện tại
+            refresh_expires_at: Expiry của refresh token
 
-                # Cập nhật trạng thái is_active = False
-                user_id = decoded_acc.get("sub")
-                auth = Auths.query.get(user_id)
-                if auth:
-                    auth.is_active = False
+        Returns:
+            tuple (result_dict, http_status_code)
+        """
+        # 1. Tìm user
+        user = User.find_by_id(int(user_id))
 
-            # 2. Xử lý Refresh Token
-            if refresh_token:
-                decoded_ref = decode_token(refresh_token, token_type="refresh", allow_expired=True)
-                exp_ref = datetime.fromtimestamp(decoded_ref["exp"])
-                
-                if not TokenBlacklist.query.filter_by(token=refresh_token).first():
-                    db.session.add(TokenBlacklist(token=refresh_token, expired_at=exp_ref))
+        if user is None:
+            return {
+                "success": False,
+                "error": {
+                    "code": "USER_NOT_FOUND",
+                    "message": "User không tồn tại.",
+                },
+            }, 404
 
-            db.session.commit()
-            return True
+        # 2. Kiểm tra user còn active (có thể bị disable sau khi lấy refresh token)
+        if not user.is_active:
+            return {
+                "success": False,
+                "error": {
+                    "code": "ACCOUNT_DISABLED",
+                    "message": "Tài khoản đã bị vô hiệu hóa.",
+                },
+            }, 403
 
-        except Exception as e:
-            db.session.rollback()
-            # Log lỗi chi tiết để debug
-            print(f"🔴 Lỗi Logout: {str(e)}")
-            return False
+        # 3. Tạo access token mới
+        new_tokens = TokenService.create_new_access_token(user)
+
+        return {"success": True, "data": new_tokens}, 200
+
+    @staticmethod
+    def register(username: str, email: str, password: str, phone: str = None) -> tuple:
+        """
+        Đăng ký tài khoản mới.
+
+        Luồng:
+            1. Kiểm tra username đã tồn tại chưa
+            2. Kiểm tra email đã tồn tại chưa
+            3. Tạo user mới với hashed password
+            4. Lưu vào database
+            5. Trả về thông tin user (không trả token — yêu cầu login)
+
+        Args:
+            username: Tên đăng nhập
+            email:    Địa chỉ email
+            password: Mật khẩu plain text (sẽ được hash)
+            phone:    Số điện thoại (optional)
+
+        Returns:
+            tuple (result_dict, http_status_code)
+        """
+        # 1. Kiểm tra username
+        if User.find_by_username(username):
+            return {
+                "success": False,
+                "error": {
+                    "code": "DUPLICATE_USERNAME",
+                    "message": f"Username '{username}' đã được sử dụng.",
+                },
+            }, 409  # 409 Conflict
+
+        # 2. Kiểm tra email
+        if User.find_by_email(email):
+            return {
+                "success": False,
+                "error": {
+                    "code": "DUPLICATE_EMAIL",
+                    "message": f"Email '{email}' đã được đăng ký.",
+                },
+            }, 409
+
+        # 3. Tạo user mới
+        user = User(
+            username=username,
+            email=email,
+            phone=phone,
+            role="user",
+            is_active=True,
+        )
+        user.set_password(password)  # Hash password trước khi lưu
+
+        # 4. Lưu vào database
+        db.session.add(user)
+        db.session.commit()
+
+        # 5. Trả về thông tin user
+        return {
+            "success": True,
+            "message": "Đăng ký thành công. Vui lòng đăng nhập.",
+            "data": {"user": user.to_dict()},
+        }, 201  # 201 Created
+
+    @staticmethod
+    def get_me(user_id: int) -> tuple:
+        """
+        Lấy thông tin user hiện tại từ token.
+
+        Args:
+            user_id: ID của user (từ JWT identity)
+
+        Returns:
+            tuple (result_dict, http_status_code)
+        """
+        user = User.find_by_id(int(user_id))
+
+        if user is None:
+            return {
+                "success": False,
+                "error": {"code": "USER_NOT_FOUND", "message": "User không tồn tại."},
+            }, 404
+
+        return {"success": True, "data": {"user": user.to_dict()}}, 200
