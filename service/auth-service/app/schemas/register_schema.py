@@ -50,12 +50,12 @@ class RegisterSchema(Schema):
 
     phone = fields.String(
         required=False,
-        allow_none=True, # có thể không cung cấp số điện thoại
+        allow_none=True,
         validate=validate.Regexp(
-            r"^(84|0[3|5|7|8|9])+([0-9]{8})\b",
+            r"^(?:\+84|0)(3|5|7|8|9)\d{8}$",
             error="Số điện thoại không hợp lệ.",
         ),
-        load_default=None, # nếu không cung cấp thì mặc định là None
+        load_default=None,
     )
     
     def validate_password_strength(self, password: str) -> None:

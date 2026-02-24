@@ -355,8 +355,88 @@
             },
             "url": "{{base_url}}/api/auth/login"
           }
+        },
+        {
+      "name": "14. User Xem Thông Tin Cá Nhân (/me)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Trả về đúng thông tin user', () => {",
+              "  const b = pm.response.json();",
+              "  pm.expect(b.success).to.be.true;",
+              "  pm.expect(b.data.user.role).to.equal('user');",
+              "  pm.expect(b.data.user.username).to.equal('john_doe');",
+              "});"
+            ]
+          }
         }
-      ]
-    }
-  ]
+      ],
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{user_token}}" }]
+        },
+        "url": "{{base_url}}/api/auth/me"
+      }
+    },
+    {
+      "name": "15. User Refresh Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.success) {",
+              "  pm.collectionVariables.set('user_token', b.data.access_token);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{refresh_token}}" }]
+        },
+        "url": "{{base_url}}/api/auth/refresh"
+      }
+    },
+    {
+      "name": "16. User Đăng Xuất",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('User đã logout', () => pm.expect(pm.response.json().success).to.be.true);",
+              "pm.collectionVariables.set('user_token', '');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{user_token}}" }]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+        },
+        "url": "{{base_url}}/api/auth/logout"
+        }
+      }
+    ]
+  }
+]
 }
