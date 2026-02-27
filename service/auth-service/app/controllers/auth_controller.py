@@ -95,10 +95,20 @@ def register():
             "error": { "code": "DUPLICATE_USERNAME", "message": "..." }
         }
     """
-    body = request.get_json(silent=True)
+    # Đọc body
+    data = request.get_json(silent= True)
+
+    if not data:
+        return jsonify({
+            "success": False,
+            "error": {
+                "code": "MISSING_DATA", 
+                "message": "Request data trống."
+                
+        }}), 400
 
     # Validate input
-    errors = register_schema.validate(body or {})
+    errors = register_schema.validate(body)
     if errors:
         return jsonify({
             "success": False,
