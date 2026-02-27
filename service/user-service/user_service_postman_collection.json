@@ -1,0 +1,730 @@
+{
+	"info": {
+		"_postman_id": "user-service-tests-001",
+		"name": "User Service - Complete Tests",
+		"description": "Comprehensive test suite for User Service (port 5002)\n\n**Services:**\n- Auth Service: http://localhost:5001\n- User Service: http://localhost:5002\n\n**Test Coverage:**\n- Setup: Login user & admin (2 tests)\n- Profile Management: GET/PUT/change password (3 tests)\n- Admin Management: List/Get/Update/Status/Delete (5 tests)\n- Preferences: GET/PUT (2 tests)\n- Error Cases: Validation, Permission (3 tests)\n\n**Total: 15 tests**",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "0. Setup - Login Tests",
+			"item": [
+				{
+					"name": "Login User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Response has access_token\", () => {",
+									"    pm.expect(body.data).to.have.property('access_token');",
+									"});",
+									"",
+									"pm.test(\"Role is user\", () => {",
+									"    pm.expect(body.data.user.role).to.equal('user');",
+									"});",
+									"",
+									"// Save token to collection variable",
+									"if (body.data.access_token) {",
+									"    pm.collectionVariables.set(\"user_token\", body.data.access_token);",
+									"    console.log(\"✅ User token saved\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"john_doe\",\n    \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_url}}/api/auth/login",
+							"host": ["{{auth_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as regular user to get token for testing"
+					},
+					"response": []
+				},
+				{
+					"name": "Login Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Response has access_token\", () => {",
+									"    pm.expect(body.data).to.have.property('access_token');",
+									"});",
+									"",
+									"pm.test(\"Role is admin\", () => {",
+									"    pm.expect(body.data.user.role).to.equal('admin');",
+									"});",
+									"",
+									"// Save admin token",
+									"if (body.data.access_token) {",
+									"    pm.collectionVariables.set(\"admin_token\", body.data.access_token);",
+									"    console.log(\"✅ Admin token saved\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"Admin123!\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_url}}/api/auth/login",
+							"host": ["{{auth_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as admin to get admin token"
+					},
+					"response": []
+				}
+			],
+			"description": "Login to get tokens for testing"
+		},
+		{
+			"name": "1. Profile Management",
+			"item": [
+				{
+					"name": "GET /api/users/me",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Success is true\", () => {",
+									"    pm.expect(body.success).to.be.true;",
+									"});",
+									"",
+									"pm.test(\"Has user data\", () => {",
+									"    pm.expect(body.data).to.have.property('user');",
+									"    pm.expect(body.data.user).to.have.property('username');",
+									"    pm.expect(body.data.user).to.have.property('email');",
+									"    pm.expect(body.data.user).to.not.have.property('password_hash');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "me"]
+						},
+						"description": "User views their own profile"
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /api/users/me",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Profile updated\", () => {",
+									"    pm.expect(body.success).to.be.true;",
+									"    pm.expect(body.message).to.include('thành công');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john_updated@example.com\",\n    \"phone\": \"+84912345678\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "me"]
+						},
+						"description": "User updates their email and phone"
+					},
+					"response": []
+				},
+				{
+					"name": "POST /api/users/me/change-password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Password changed\", () => {",
+									"    pm.expect(body.success).to.be.true;",
+									"    pm.expect(body.message).to.include('password');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"old_password\": \"Password123!\",\n    \"new_password\": \"NewPass456!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users/me/change-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "me", "change-password"]
+						},
+						"description": "User changes their password"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Admin - User Management",
+			"item": [
+				{
+					"name": "GET /api/list-users (List)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Has users array\", () => {",
+									"    pm.expect(body.data).to.have.property('users');",
+									"    pm.expect(body.data.users).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"Has pagination\", () => {",
+									"    pm.expect(body.data).to.have.property('pagination');",
+									"    pm.expect(body.data.pagination).to.have.property('page');",
+									"    pm.expect(body.data.pagination).to.have.property('total');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users?page=1&per_page=10&search=john",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "per_page", "value": "10"},
+								{"key": "search", "value": "john"}
+							]
+						},
+						"description": "Admin lists all users with pagination"
+					},
+					"response": []
+				},
+				{
+					"name": "GET /api/users/:id (Admin)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Has user data\", () => {",
+									"    pm.expect(body.data).to.have.property('user');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/2",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "2"]
+						},
+						"description": "Admin views any user's details"
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /api/users/:id (Admin Update)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200 or 404\", () => {",
+									"    pm.expect([200, 404]).to.include(pm.response.code);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const body = pm.response.json();",
+									"    pm.test(\"User updated\", () => {",
+									"        pm.expect(body.success).to.be.true;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin_updated@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users/2",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "2"]
+						},
+						"description": "Admin updates another user's profile"
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH /api/users/:id/status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200 or 404\", () => {",
+									"    pm.expect([200, 404]).to.include(pm.response.code);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const body = pm.response.json();",
+									"    pm.test(\"Status toggled\", () => {",
+									"        pm.expect(body.success).to.be.true;",
+									"        pm.expect(body.data.user.is_active).to.be.a('boolean');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users/2/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "2", "status"]
+						},
+						"description": "Admin deactivates a user"
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE /api/users/:id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200 or 404\", () => {",
+									"    pm.expect([200, 404]).to.include(pm.response.code);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const body = pm.response.json();",
+									"    pm.test(\"User deleted\", () => {",
+									"        pm.expect(body.success).to.be.true;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/2",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "2"]
+						},
+						"description": "Admin deletes (soft delete) a user"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Preferences",
+			"item": [
+				{
+					"name": "GET /api/users/me/preferences",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Has preferences\", () => {",
+									"    pm.expect(body.data).to.have.property('preferences');",
+									"    pm.expect(body.data.preferences).to.have.property('email_alerts');",
+									"    pm.expect(body.data.preferences).to.have.property('sms_alerts');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/me/preferences",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "me", "preferences"]
+						},
+						"description": "User views their preferences"
+					},
+					"response": []
+				},
+				{
+					"name": "PUT /api/users/me/preferences",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200\", () => {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Preferences updated\", () => {",
+									"    pm.expect(body.success).to.be.true;",
+									"    pm.expect(body.data.preferences.email_alerts).to.be.false;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email_alerts\": false,\n    \"sms_alerts\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users/me/preferences",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "me", "preferences"]
+						},
+						"description": "User updates their preferences"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Error Cases",
+			"item": [
+				{
+					"name": "GET /api/users/:id (User Forbidden)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 403 Forbidden\", () => {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Error is FORBIDDEN\", () => {",
+									"    pm.expect(body.success).to.be.false;",
+									"    pm.expect(body.error.code).to.equal('FORBIDDEN');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "1"]
+						},
+						"description": "User tries to view another user - should get 403"
+					},
+					"response": []
+				},
+				{
+					"name": "POST /api/users/me/change-password (Weak)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 400 Validation Error\", () => {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Has validation error\", () => {",
+									"    pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+									"    pm.expect(body.error).to.have.property('details');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"old_password\": \"Password123!\",\n    \"new_password\": \"short\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users/me/change-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "me", "change-password"]
+						},
+						"description": "Try to change password with weak password - should fail validation"
+					},
+					"response": []
+				},
+				{
+					"name": "GET /api/users (No Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 401 Unauthorized\", () => {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test(\"Error is MISSING_TOKEN\", () => {",
+									"    pm.expect(body.success).to.be.false;",
+									"    pm.expect(body.error.code).to.equal('MISSING_TOKEN');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users"]
+						},
+						"description": "Try to access protected endpoint without token"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5002",
+			"type": "string"
+		},
+		{
+			"key": "auth_url",
+			"value": "http://localhost:5001",
+			"type": "string"
+		},
+		{
+			"key": "user_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "admin_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
