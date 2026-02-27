@@ -44,14 +44,6 @@ def requires_auth(f):
             }), 401
         
         token = auth_header.split(" ")[1]
-        user_info = validate_token_with_auth_service(token)
-        if not user_info:
-            return jsonify({
-                "success": False, 
-                "error": {"code": "INVALID_TOKEN", "message": "Token đã hết hạn hoặc không hợp lệ."}
-                }), 401
-        
-        token = auth_header.split(" ")[1]
 
         #Validate token với auth-service
         user_info = validate_token_with_auth_service(token)
