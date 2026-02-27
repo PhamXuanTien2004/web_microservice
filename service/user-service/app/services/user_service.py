@@ -1,210 +1,404 @@
 from datetime import datetime, timezone, timedelta
-from app import db
 from sqlalchemy import or_
+from flask import g  
+from app.extensions import db
 from app.models.user_model import User
 from app.models.audit_log import AuditLog
 from app.models.user_preferences_model import UserPreferences
-from flask import sqlalchemy
-# from app.schemas.register_schema import RegisterSchema
+from app.services.audit_service import AuditService 
 
 
 class UserService:
 
     @staticmethod
-    def get_user_profile(user_id: int) -> dict:
+    def get_user_profile(user_id: int) -> tuple:  
         """
         Lấy thông tin profile của user theo user_id.
-        Trả về dict chứa thông tin user hoặc None nếu không tìm thấy.
+        Trả về tuple (dict, status_code).
 
+        Returns:
+            tuple (result_dict, http_status_code)
+            
         Ví dụ:
-            {
-                "id": 123,
-                "username": "john_doe",
-                "email": "john.doe@example.com",
-                "phone": "0123456789",
-                "role": "user",
-                "is_active": True,
-                "created_at": "2024-01-01T12:00:00Z",
-                "updated_at": "2024-01-10T15:30:00Z"
-            }
+            result, status = UserService.get_user_profile(1)
+            # result = {"success": True, "data": {"user": {...}}}
+            # status = 200
         """
         # 1. Tìm user trong database bằng user_id
         user = User.find_by_id(user_id)
+        
         if not user:
-            return None  # Không tìm thấy user
-        # 2. Trả về user.to_dict() 
-        return user.to_dict()
+            return {
+                "success": False,
+                "error": {
+                    "code": "USER_NOT_FOUND",
+                    "message": "User không tồn tại."
+                }
+            }, 404  
+        
+        # 2. Trả về thông tin user
+        return {
+            "success": True,
+            "data": {"user": user.to_dict()}
+        }, 200  
 
     @staticmethod
-    def update_user_profile(user_id: int, email: str = None, phone: str = None) -> dict:
+    def update_user_profile(user_id: int, email: str = None, phone: str = None) -> tuple:
         """
-        Cập nhật thông tin profile của user.
-        Chỉ cho phép cập nhật email, phone, và role 
+        Cập nhật email và/hoặc phone của user.
+        
+        Validation:
+            - Email mới phải unique (không trùng user khác)
+            - Nếu không truyền email/phone thì giữ nguyên giá trị cũ
+        
+        Args:
+            user_id: ID của user cần cập nhật
+            email:   Email mới (optional)
+            phone:   Phone mới (optional)
+        
+        Returns:
+            tuple (result_dict, http_status_code)
+        
+        Ghi audit log:
+            Ghi lại old values và new values để truy vết thay đổi
+        """
+        # Tìm user
+        user = User.find_by_id(user_id)
+        if not user:
+            return {
+                "success": False,
+                "error": {
+                    "code": "USER_NOT_FOUND", 
+                    "message": "User không tồn tại."
+                }
+            }, 404
+            
+        # Lưu giá trị cũ để ghi vào audit log
+        old_email = user.email
+        old_phone = user.phone
+        changes = {}  # Lưu sự thay đổi nếu có 
 
-        Đối tượng:
-        - user: Cập nhật chính mình
-        - admin: Cập nhật bất kỳ user nào
+        # Kiểm tra email nếu được truyền vào
+        if email is not None and email != old_email:
+            findEmail = User.find_by_email(email)
 
-        Validate:
-        - email phải có định dạng hợp lệ
-        - phone phải có định dạng hợp lệ
+            if findEmail and findEmail.id != user_id:
+                return {
+                    "success": False,
+                    "error": {
+                        "code": "DUPLICATE_EMAIL", 
+                        "message": f"Email '{email}' đã tồn tại."
+                    }
+                }, 409
 
-         Trả về dict chứa thông tin user đã được cập nhật hoặc lỗi nếu có.
+            # Cập nhật email
+            user.email = email
+            changes["email"] = {"old": old_email, "new": email}
 
-         Ví dụ:
-            Input data:
-            {
-                "email": "john.doe@example.com",
-                "phone": "0123456789",
+        # Kiểm tra phone nếu được truyền vào
+        if phone is not None and phone != old_phone: 
+            user.phone = phone
+            changes["phone"] = {"old": old_phone, "new": phone}
+        
+        # Nếu không có gì thay đổi
+        if not changes:
+            return {
+                "success": True,
+                "message": "Không có gì thay đổi",
+                "data": {"user": user.to_dict()}
+            }, 200
+        
+        # Lưu vào db
+        try: 
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return {
+                "success": False,
+                "error": {
+                    "code": "DATABASE_ERROR",
+                    "message": "Lỗi truy cập database"
+                }
+            }, 500
+       
+        # Ghi audit log
+        AuditService.log(
+            user_id=user_id,  # Người thực hiện thay đổi
+            action="UPDATE_PROFILE",
+            resource_type="user",
+            resource_id=user_id,
+            details=changes  # {"email": {"old": "...", "new": "..."}}
+        )
+        
+        # Trả về kết quả
+        return {
+            "success": True,
+            "message": "Cập nhật profile thành công.",
+            "data": {"user": user.to_dict()}
+        }, 200
+
+    @staticmethod
+    def change_password(user_id: int, old_password: str, new_password: str) -> tuple: 
+        """
+        Đổi password của user.
+        
+        Security flow:
+            1. Verify old password đúng
+            2. Validate new password đủ mạnh (đã check ở Schema)
+            3. Đảm bảo new != old
+            4. Hash new password
+            5. Cập nhật password_hash
+            6. (Optional) Blacklist tất cả tokens → buộc login lại
+        
+        Args:
+            user_id:      ID của user
+            old_password: Password hiện tại (để verify)
+            new_password: Password mới
+        
+        Returns:
+            tuple (result_dict, http_status_code)
+        """
+        # Tìm user
+        user = User.find_by_id(user_id)
+        if not user:
+            return {
+                "success": False,
+                "error": {
+                    "code": "USER_NOT_FOUND", 
+                    "message": "User không tồn tại."
+                }
+            }, 404
+
+        # Verify old password
+        if not user.check_password(old_password):
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_OLD_PASSWORD",
+                    "message": "Password hiện tại không đúng"
+                }
+            }, 401  
+
+        # Kiểm tra new password khác old password
+        if old_password == new_password:
+            return {
+                "success": False,
+                "error": {
+                    "code": "PASSWORD_UNCHANGED",
+                    "message": "Password mới phải khác Password cũ"
+                }
+            }, 400  
+
+        # Hash và cập nhật password mới
+        user.set_password(new_password)
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return {
+                "success": False,
+                "error": {
+                    "code": "DATABASE_ERROR", 
+                    "message": "Lỗi khi đổi password."
+                }
+            }, 500
+            
+        # Ghi audit log
+        AuditService.log(
+            user_id=user_id,
+            action="CHANGE_PASSWORD",
+            resource_type="user",
+            resource_id=user_id,
+            details={"note": "Password changed successfully"}
+            # KHÔNG lưu password vào log (bảo mật!)
+        )
+        
+        # (OPTIONAL - SECURITY) Blacklist tất cả tokens của user này
+        # Buộc user phải đăng nhập lại ở tất cả thiết bị
+        # Cần gọi API của Auth Service để blacklist tokens
+        # hoặc set flag trong DB để Auth Service check
+        
+        # TODO: Implement token revocation
+        # _revoke_all_user_tokens(user_id)
+
+        # Trả về success
+        return {
+            "success": True,
+            "message": "Đổi password thành công. Vui lòng đăng nhập lại."
+        }, 200
+
+    @staticmethod
+    def list_users(page: int = 1, per_page: int = 20,
+                   search: str = None, role: str = None) -> tuple:
+        """
+        Lấy danh sách users với phân trang và filter.
+        
+        ADMIN ONLY - Controller phải kiểm tra role trước khi gọi.
+        
+        Args:
+            page:     Trang hiện tại (bắt đầu từ 1)
+            per_page: Số users mỗi trang (max 100)
+            search:   Tìm kiếm theo username hoặc email (optional)
+            role:     Lọc theo role "user" hoặc "admin" (optional)
+        
+        Returns:
+            tuple (result_dict, http_status_code)
+        
+        Ví dụ:
+            # Trang 1, 20 users, tìm "john"
+            list_users(page=1, per_page=20, search="john")
+            
+            # Trang 2, chỉ lấy admins
+            list_users(page=2, role="admin")
+        """
+        # 1. Build query cơ bản
+        query = User.query
+        
+        # 2. Apply search filter (nếu có)
+        if search:
+            # Tìm trong cả username VÀ email
+            # %search% = contains (LIKE)
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                or_(
+                    User.username.ilike(search_pattern),
+                    User.email.ilike(search_pattern)
+                )
+            )
+        
+        # 3. Apply role filter (nếu có)
+        if role:
+            query = query.filter(User.role == role)
+        
+        # 4. Order by ID (mới nhất trước)
+        query = query.order_by(User.id.desc())
+        
+        # 5. Paginate
+        # Flask-SQLAlchemy có method .paginate() rất tiện
+        pagination = query.paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False  # Không raise error nếu page > total_pages
+        )
+        
+        # 6. Convert users sang dict
+        users = [user.to_dict() for user in pagination.items]
+        
+        # 7. Trả về kết quả
+        return {
+            "success": True,
+            "data": {
+                "users": users,
+                "pagination": {
+                    "page": pagination.page,
+                    "per_page": pagination.per_page,
+                    "total": pagination.total,      # Tổng số records
+                    "pages": pagination.pages       # Tổng số trang
+                }
             }
-            Output data:
-            {
-                "id": 123,
-                "username": "john_doe",
-                "email": "john.doe@example.com",
-                "phone": "0123456789",
-                "role": "user", 
-                "is_active": True,
-                "created_at": "2024-01-01T12:00:00Z",
-                "updated_at": "2024-01-10T15:30:00Z"
-            }
+        }, 200
+
+    @staticmethod
+    def toggle_user_status(user_id: int, is_active: bool, 
+                           current_user_id: int = None) -> tuple: 
+        """
+        Kích hoạt hoặc vô hiệu hóa user.
+        
+        ADMIN ONLY.
+        
+        Args:
+            user_id:         ID của user cần thay đổi
+            is_active:       True = kích hoạt, False = vô hiệu hóa
+            current_user_id: ID của admin đang thực hiện (optional)
+        
+        Returns:
+            tuple (result_dict, http_status_code)
+        
+        Side effects:
+            Nếu is_active = False → nên blacklist tất cả tokens
+            để user bị logout ngay lập tức.
         """
         # 1. Tìm user
         user = User.find_by_id(user_id)
         if not user:
-            return {"success": False, "error": "User không tồn tại."}
-            
-        # 2. Kiểm tra email, phone không trùng
-        if email and email != user.email:
-            if User.find_by_email(email):
-                return {"success": False, "error": "Email đã được sử dụng."}
-            user.email = email
-        if phone and phone != user.phone:
-            if User.find_by_phone(phone):
-                return {"success": False, "error": "Số điện thoại đã được sử dụng."}
-            user.phone = phone
-
-        # 3. Cập nhật fields
-        user.updated_at = datetime.now(timezone.utc) + timedelta(hours=7)
-
+            return {
+                "success": False,
+                "error": {"code": "USER_NOT_FOUND", "message": "User không tồn tại."}
+            }, 404
+        
+        # 2. Kiểm tra trạng thái hiện tại
+        if user.is_active == is_active:
+            # Không có gì thay đổi
+            return {
+                "success": True,
+                "message": f"User đã ở trạng thái {'active' if is_active else 'inactive'}.",
+                "data": {"user": user.to_dict()}
+            }, 200
+        
+        # 3. Cập nhật trạng thái
+        old_status = user.is_active
+        user.is_active = is_active
+        
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return {
+                "success": False,
+                "error": {"code": "DATABASE_ERROR", "message": "Lỗi khi cập nhật."}
+            }, 500
+        
         # 4. Ghi audit log
-        audit_log = AuditLog(
-            user_id=user.id,
-            action="update_profile",
-            ip_address="",  # Lấy IP từ request context nếu cần
-            user_agent="",  # Lấy user agent từ request context nếu cần
-            # Có thể thêm details về những gì đã thay đổi nếu cần, ví dụ:
-            # email đã thay đổi từ old_email sang new_email, phone đã thay đổi từ old_phone sang new_phone
+        action = "ACTIVATE_USER" if is_active else "DEACTIVATE_USER"
+        
+        log_user_id = current_user_id if current_user_id else user_id
+        
+        AuditService.log(
+            user_id=log_user_id,  # Changed: use parameter
+            action=action,
+            resource_type="user",
+            resource_id=user_id,
             details={
-                "email": {"old": user.email, "new": email} if email else None,
-                "phone": {"old": user.phone, "new": phone} if phone else None,
+                "old_status": old_status,
+                "new_status": is_active
             }
         )
-        db.session.add(audit_log)
         
-        # 5. Commit DB
-        db.session.commit()
-
-        # 6. Trả về user đã được cập nhật
-        return user.to_dict()
-
-    @staticmethod
-    def change_password(user_id: int, old_password: str, new_password: str) -> dict:
-        # 1. Validation nhanh (Nên làm trước khi đụng vào DB)
-        if old_password == new_password:
-            return {"success": False, "error": "Mật khẩu mới phải khác mật khẩu cũ."}
+        # 5. (OPTIONAL) Nếu vô hiệu hóa → blacklist tất cả tokens
+        if not is_active:
+            # TODO: Gọi Auth Service để revoke tokens
+            # _revoke_all_user_tokens(user_id)
+            pass
         
-        # Giả sử RegisterSchema() là một class có phương thức static hoặc cần khởi tạo
-        if not RegisterSchema().validate_password_strength(new_password):
-            return {"success": False, "error": "Mật khẩu mới không đủ mạnh."}
-
-        try:
-            # 2. Kiểm tra User
-            user = User.query.get(user_id) # Hoặc find_by_id tùy bạn define
-            if not user:
-                return {"success": False, "error": "User không tồn tại."}
-
-            # 3. Xác thực mật khẩu cũ
-            if not user.check_password(old_password):
-                return {"success": False, "error": "Mật khẩu cũ không đúng."}
-
-            # 4. Thực hiện thay đổi
-            user.set_password(new_password)
-            
-            # 5. Ghi log (Tốt nhất nên lấy IP/User-Agent từ Request context của Flask/FastAPI)
-            audit_log = AuditLog(
-                user_id=user.id,
-                action="change_password",
-                details={"message": "Người dùng đã thay đổi mật khẩu thành công."}
-            )
-            db.session.add(audit_log)
-            
-            # 6. Commit một lần duy nhất cho tất cả thay đổi
-            db.session.commit()
-
-            # 7. Blacklist tất cả tokens hiện tại → bắt login lại
-            
-
-            return {"success": True, "message": "Đổi mật khẩu thành công."}
-
-        except Exception as e:
-            db.session.rollback() # Quan trọng: Trả lại trạng thái cũ nếu lỗi
-            return {"success": False, "error": f"Lỗi hệ thống: {str(e)}"}
-
-    @staticmethod
-    def list_users(page: int = 1, per_page: int = 20, search: str = None) -> dict:
-        """
-        Danh sách users với phân trang và filter (ADMIN ONLY).
-        
-        Args:
-            page: Trang hiện tại (1, 2, 3...)
-            per_page: Số users mỗi trang
-            search: Tìm theo username hoặc email
-        
-        Returns:
-            {
-                "success": True,
-                "data": {
-                    "users": [...],
-                    "pagination": {
-                        "page": 1,
-                        "per_page": 20,
-                        "total": 150,
-                        "pages": 8
-                    }
-                }
-            }
-        """
-        # 1. Khởi tạo query cơ bản, sắp xếp theo created_at giảm dần
-        query = User.query.order_by(User.created_at.desc())
-
-        # 2. Áp dụng filter nếu có tham số search (Case-insensitive)
-        if search:
-            search_filter = f"%{search}%"
-            query = query.filter(
-                or_(
-                    User.username.ilike(search_filter),
-                    User.email.ilike(search_filter)
-                )
-            )
-
-        # 3. Thực hiện phân trang (Sử dụng hàm paginate của Flask-SQLAlchemy)
-        # error_out=False giúp trả về list rỗng thay vì lỗi 404 nếu page vượt quá giới hạn
-        pagination_obj = query.paginate(page=page, per_page=per_page, error_out=False)
-
-        # 4. Serialize dữ liệu (Giả sử bạn đã có UserSchema hoặc phương thức to_dict)
-        users_data = [user.to_dict() for user in pagination_obj.items]
-
-        # 5. Trả về cấu trúc theo yêu cầu
+        # 6. Trả về
+        status_text = "kích hoạt" if is_active else "vô hiệu hóa"
         return {
             "success": True,
-            "data": {
-                "users": users_data,
-                "pagination": {
-                    "page": pagination_obj.page,
-                    "per_page": pagination_obj.per_page,
-                    "total": pagination_obj.total,
-                    "pages": pagination_obj.pages
-                }
-            }
-        }
+            "message": f"Đã {status_text} user thành công.",
+            "data": {"user": user.to_dict()}
+        }, 200
+
+    @staticmethod
+    def delete_user(user_id: int, current_user_id: int = None) -> tuple:
+        """
+        Xóa user (soft delete).
+        
+        ADMIN ONLY.
+        
+        Thực chất chỉ set is_active = False,
+        không xóa hẳn khỏi database.
+        
+        Args:
+            user_id:         ID của user cần xóa
+            current_user_id: ID của admin đang thực hiện
+        
+        Returns:
+            tuple (result_dict, http_status_code)
+        """
+        # Gọi lại toggle_user_status với is_active = False
+        return UserService.toggle_user_status(
+            user_id=user_id, 
+            is_active=False,
+            current_user_id=current_user_id
+        )
